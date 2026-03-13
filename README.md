@@ -203,30 +203,26 @@ Project-2-DuDoanTieuDuong/
 
 ## 10) Công nghệ sử dụng
 - **Backend:** FastAPI + SQLAlchemy + SQLite
-- **ML model:** Logistic Regression / Decision Tree / Random Forest (đã huấn luyện và lưu trong `backend/assets/`)
-- **Xử lý mất cân bằng lớp:** hỗ trợ qua pipeline huấn luyện (class weight hoặc SMOTE đơn giản trong notebook huấn luyện)
+- **ML model:** Logistic Regression / Decision Tree / Random Forest
 - **Frontend:** HTML/CSS/JavaScript thuần + Chart.js
+---
 
-## Cấu trúc thư mục
-- `backend/`: API, service dự đoán, DB, model artifacts
-- `frontend/`: giao diện form + kết quả + lịch sử + radar chart
-- `data/raw/diabetes.csv`: dữ liệu đầu vào
-- `notebooks/`: notebook EDA và huấn luyện
-
-## Chạy ứng dụng
-### 1) Backend
+## 11) Chạy ứng dụng
+### 11.1 Backend
 ```bash
 cd backend
 python create_tables.py
 uvicorn main:app --reload --port 8000
 ```
 > Nếu máy bạn báo thiếu package, cài nhanh:
+
+> Nếu thiếu package, cài nhanh:
 ```bash
 pip install fastapi uvicorn sqlalchemy python-dotenv joblib numpy pydantic
 ```
 
 
-### 2) Frontend
+### 11.2 Frontend
 Bạn có 3 cách chạy frontend (khuyến nghị cách A hoặc B):
 
 **A. Dùng Python HTTP server**
@@ -234,12 +230,7 @@ Bạn có 3 cách chạy frontend (khuyến nghị cách A hoặc B):
 cd frontend
 python -m http.server 5500
 ```
-Nếu Windows báo `Python was not found`, thử:
-```bash
-py -m http.server 5500
-```
-
-**B. Dùng Node.js (không cần Python)**
+**B. Dùng Node.js**
 ```bash
 cd frontend
 npx serve . -l 5500
@@ -251,6 +242,9 @@ npx serve . -l 5500
 Sau đó truy cập `http://127.0.0.1:5500`.
 
 ## API endpoints
+---
+
+## 12) API endpoints
 - `GET /` - Welcome message
 - `GET /api/health` - Kiểm tra trạng thái API
 - `POST /api/predict` - Dự đoán nguy cơ tiểu đường
