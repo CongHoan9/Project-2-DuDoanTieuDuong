@@ -29,13 +29,34 @@ cd backend
 python create_tables.py
 uvicorn main:app --reload --port 8000
 ```
+> Nếu máy bạn báo thiếu package, cài nhanh:
+```bash
+pip install fastapi uvicorn sqlalchemy python-dotenv joblib numpy pydantic
+```
+
 
 ### 2) Frontend
-Mở file `frontend/index.html` trực tiếp bằng trình duyệt hoặc chạy static server:
+Bạn có 3 cách chạy frontend (khuyến nghị cách A hoặc B):
+
+**A. Dùng Python HTTP server**
 ```bash
 cd frontend
 python -m http.server 5500
 ```
+Nếu Windows báo `Python was not found`, thử:
+```bash
+py -m http.server 5500
+```
+
+**B. Dùng Node.js (không cần Python)**
+```bash
+cd frontend
+npx serve . -l 5500
+```
+
+**C. Mở trực tiếp file `frontend/index.html`**
+- Vẫn có thể dùng được trong nhiều trình duyệt, nhưng cách A/B ổn định hơn.
+
 Sau đó truy cập `http://127.0.0.1:5500`.
 
 ## API endpoints
