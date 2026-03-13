@@ -27,7 +27,7 @@
 ```bash
 cd backend
 python create_tables.py
-uvicorn main:app --reload --port 8000
+py -m uvicorn main:app --reload --port 8000
 ```
 > Nếu máy bạn báo thiếu package, cài nhanh:
 ```bash
