@@ -240,10 +240,7 @@ npx serve . -l 5500
 - Vẫn có thể dùng được trong nhiều trình duyệt, nhưng cách A/B ổn định hơn.
 
 Sau đó truy cập `http://127.0.0.1:5500`.
-
-## API endpoints
 ---
-
 ## 12) API endpoints
 - `GET /` - Welcome message
 - `GET /api/health` - Kiểm tra trạng thái API
