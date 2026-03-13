@@ -1,5 +1,3 @@
-diff --git a/README.md b/README.md
-
  # A9 - Web App Dự đoán Bệnh Tiểu đường (Diabetes Prediction)
  
  Ứng dụng dự đoán nguy cơ mắc tiểu đường dựa trên bộ dữ liệu **Pima Indians Diabetes Database**.
@@ -280,3 +278,6 @@ diff --git a/README.md b/README.md
  - `POST /api/predict` - Dự đoán nguy cơ tiểu đường
  - `GET /api/history?limit=10` - Lấy lịch sử kiểm tra gần đây
  - `GET /api/reference-stats` - Lấy median tham chiếu cho radar chart
+ 
+EOF
+)
