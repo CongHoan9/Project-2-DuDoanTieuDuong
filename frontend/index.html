@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dự đoán nguy cơ tiểu đường</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <h1>Dự đoán nguy cơ mắc bệnh tiểu đường</h1>
+
+    <form id="predictionForm">
+        <label>Số lần mang thai (Pregnancies):</label>
+        <input type="number" id="Pregnancies" min="0" value="0" required>
+
+        <label>Nồng độ glucose (Glucose, mg/dL):</label>
+        <input type="number" id="Glucose" min="0" value="120" required>
+
+        <label>Huyết áp tâm thu (BloodPressure, mm Hg):</label>
+        <input type="number" id="BloodPressure" min="0" value="72" required>
+
+        <label>Độ dày da (SkinThickness, mm):</label>
+        <input type="number" id="SkinThickness" min="0" value="35" required>
+
+        <label>Nồng độ insulin (Insulin, mu U/ml):</label>
+        <input type="number" id="Insulin" min="0" value="0" required>
+
+        <label>Chỉ số khối cơ thể (BMI):</label>
+        <input type="number" id="BMI" min="0" step="0.1" value="33.6" required>
+
+        <label>Hàm phả hệ tiểu đường (DiabetesPedigreeFunction):</label>
+        <input type="number" id="DiabetesPedigreeFunction" min="0" step="0.001" value="0.627" required>
+
+        <label>Tuổi (Age):</label>
+        <input type="number" id="Age" min="21" value="50" required>
+
+        <button type="submit">Dự đoán</button>
+    </form>
+
+    <div id="result"></div>
+    <canvas id="radarChart"></canvas>
+
+    <script src="js/app.js"></script>
+</body>
+
+</html>
