@@ -2,48 +2,86 @@
 <html lang="vi">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dự đoán nguy cơ tiểu đường</title>
-    <link rel="stylesheet" href="css/style.css">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Diabetes Prediction - Dự đoán nguy cơ tiểu đường</title>
+    <link rel="stylesheet" href="style.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
-    <h1>Dự đoán nguy cơ mắc bệnh tiểu đường</h1>
+    <main class="container">
+        <h1>🩺 Dự đoán nguy cơ mắc bệnh tiểu đường</h1>
+        <p class="subheading">Nhập các chỉ số sức khỏe để nhận dự đoán có/không nguy cơ và xác suất.</p>
 
-    <form id="predictionForm">
-        <label>Số lần mang thai (Pregnancies):</label>
-        <input type="number" id="Pregnancies" min="0" value="0" required>
+        <section class="card">
+            <form id="predictionForm" class="form-grid">
+                <label>Số lần mang thai (Pregnancies)
+                    <input type="number" id="Pregnancies" min="0" value="1" required />
+                </label>
 
-        <label>Nồng độ glucose (Glucose, mg/dL):</label>
-        <input type="number" id="Glucose" min="0" value="120" required>
+                <label>Glucose (mg/dL)
+                    <input type="number" id="Glucose" min="0" value="125" required />
+                </label>
 
-        <label>Huyết áp tâm thu (BloodPressure, mm Hg):</label>
-        <input type="number" id="BloodPressure" min="0" value="72" required>
+                <label>Huyết áp tâm trương (BloodPressure, mm Hg)
+                    <input type="number" id="BloodPressure" min="0" value="78" required />
+                </label>
 
-        <label>Độ dày da (SkinThickness, mm):</label>
-        <input type="number" id="SkinThickness" min="0" value="35" required>
+                <label>SkinThickness (mm)
+                    <input type="number" id="SkinThickness" min="0" value="30" required />
+                </label>
 
-        <label>Nồng độ insulin (Insulin, mu U/ml):</label>
-        <input type="number" id="Insulin" min="0" value="0" required>
+                <label>Insulin (mu U/ml)
+                    <input type="number" id="Insulin" min="0" value="90" required />
+                </label>
 
-        <label>Chỉ số khối cơ thể (BMI):</label>
-        <input type="number" id="BMI" min="0" step="0.1" value="33.6" required>
+                <label>BMI
+                    <input type="number" id="BMI" min="0" step="0.1" value="28.6" required />
+                </label>
 
-        <label>Hàm phả hệ tiểu đường (DiabetesPedigreeFunction):</label>
-        <input type="number" id="DiabetesPedigreeFunction" min="0" step="0.001" value="0.627" required>
+                <label>DiabetesPedigreeFunction
+                    <input type="number" id="DiabetesPedigreeFunction" min="0" step="0.001" value="0.627" required />
+                </label>
 
-        <label>Tuổi (Age):</label>
-        <input type="number" id="Age" min="21" value="50" required>
+                <label>Tuổi (Age)
+                    <input type="number" id="Age" min="21" value="42" required />
+                </label>
 
-        <button type="submit">Dự đoán</button>
-    </form>
+                <button type="submit">Dự đoán ngay</button>
+            </form>
+        </section>
 
-    <div id="result"></div>
-    <canvas id="radarChart"></canvas>
+        <section id="result" class="card hidden"></section>
 
-    <script src="js/app.js"></script>
+        <section class="card">
+            <h2>📊 Radar Chart: Chỉ số của bạn vs mức chuẩn</h2>
+            <canvas id="radarChart"></canvas>
+        </section>
+
+        <section class="card">
+            <h2>🕒 Lịch sử kiểm tra gần đây</h2>
+            <table id="historyTable">
+                <thead>
+                    <tr>
+                        <th>Thời gian</th>
+                        <th>Kết quả</th>
+                        <th>Xác suất</th>
+                        <th>Glucose</th>
+                        <th>BMI</th>
+                        <th>Tuổi</th>
+                    </tr>
+                </thead>
+                <tbody id="historyBody">
+                    <tr>
+                        <td colspan="6">Chưa có dữ liệu.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
 </body>
 
 </html>
