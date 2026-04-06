@@ -957,6 +957,14 @@ button:disabled {
     align-self: start;
 }
 
+.dashboard-grid--summary > .summary-panel,
+.dashboard-grid--summary > .alerts-panel,
+.dashboard-grid--summary > .actions-panel,
+.dashboard-grid--summary > .analysis-chart-panel {
+    align-self: stretch;
+    height: 100%;
+}
+
 .library-visual-panel {
     grid-column: 1 / span 12;
     background: var(--surface-strong);
@@ -1117,7 +1125,9 @@ button:disabled {
 
 .insights-panel > .metric-grid > .metric-card,
 .reference-panel > .reference-grid > .reference-card {
-    display: block;
+    display: grid;
+    align-content: start;
+    gap: 12px;
     width: 100%;
     margin: 0 0 var(--space-grid-gap);
     break-inside: avoid;
