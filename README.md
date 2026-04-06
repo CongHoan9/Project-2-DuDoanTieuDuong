@@ -1,249 +1,108 @@
-# A9 - Web App Dự đoán Bệnh Tiểu đường (Diabetes Prediction)
+# Diabetes Prediction Webapp
 
-Ứng dụng dự đoán nguy cơ mắc tiểu đường dựa trên bộ dữ liệu **Pima Indians Diabetes Database**.
+Cach don gian nhat va on nhat cho project nay:
 
-## 1) Mô tả bài toán
+- 1 Render Web Service duy nhat
+- FastAPI serve ca frontend va API
+- Khong can ngrok
+- Khong can frontend static site rieng
 
-### 1.1 Bối cảnh
-- Tiểu đường là bệnh mạn tính phổ biến, cần phát hiện sớm để giảm biến chứng.
-- Nhóm xây dựng một hệ thống hỗ trợ sàng lọc nguy cơ ban đầu từ các chỉ số lâm sàng cơ bản.
+Kien truc sau khi doi:
 
-### 1.2 Bài toán nghiệp vụ
-- **Đầu vào:** thông tin bệnh nhân (8 chỉ số).
-- **Đầu ra:**
-  - Dự đoán nhị phân: nguy cơ thấp / có nguy cơ cao.
-  - Xác suất mắc bệnh (0 → 1).
-  - Khuyến nghị sức khỏe ngắn gọn theo từng trường hợp.
-- **Mục tiêu:** hỗ trợ đánh giá nhanh, không thay thế chẩn đoán bác sĩ.
+`Render Web Service (FastAPI + frontend) -> /api -> model -> Supabase free (neu can luu lich su online)`
 
----
+## Ban chi can sua gi
 
-## 2) Dữ liệu
+Neu muon app chay ngay tren Render:
 
-### 2.1 Nguồn dữ liệu
-- Bộ dữ liệu: **Pima Indians Diabetes Database**.
-- File sử dụng trong project: `data/raw/diabetes.csv`.
+1. Khong can sua URL backend
+2. Khong can sua URL frontend
+3. Chi can thay 2 bien Supabase neu muon luu lich su online
 
-### 2.2 Biến đầu vào (features)
-1. Pregnancies
-2. Glucose
-3. BloodPressure
-4. SkinThickness
-5. Insulin
-6. BMI
-7. DiabetesPedigreeFunction
-8. Age
+Can thay trong [backend/.env](/C:/Users/84352/Desktop/diabetes-prediction-webapp/backend/.env) hoac tren Render env vars:
 
-### 2.3 Biến mục tiêu (target)
-- `Outcome`: 0 (không mắc), 1 (mắc tiểu đường).
+- `SUPABASE_URL=https://URL_CUA_SUPABASE_PROJECT`
+- `SUPABASE_SERVICE_ROLE_KEY=SERVICE_ROLE_KEY_CUA_SUPABASE`
 
-### 2.4 Chất lượng dữ liệu
-- Một số cột có giá trị `0` không hợp lý về mặt y khoa (`Glucose`, `BloodPressure`, `SkinThickness`, `Insulin`, `BMI`) được xem là missing ẩn.
-- Hướng xử lý hiện tại trong pipeline: **impute theo median** và chuẩn hóa dữ liệu trước khi suy luận.
+Neu khong thay 2 bien nay, app van chay, nhung lich su se chi luu tam bang SQLite trong Render va co the mat sau khi redeploy.
 
----
+## Deploy len Render
 
-## 3) Khai phá dữ liệu (EDA)
+Repo da co san [render.yaml](/C:/Users/84352/Desktop/diabetes-prediction-webapp/render.yaml) cho 1 web service Python duy nhat.
 
-Notebook chính: `notebooks/01_EDA_and_Understanding_Data.ipynb`.
+Thong so chinh:
 
-### 3.1 Các bước EDA đã thực hiện
-- Thống kê mô tả và phân phối dữ liệu.
-- Kiểm tra missing values ẩn dưới dạng 0.
-- Histogram + Boxplot để quan sát phân bố và outlier.
-- Kiểm tra tỷ lệ lớp `Outcome` (mất cân bằng lớp).
-- Correlation heatmap, pairplot để xem quan hệ giữa biến và nhãn.
+- Root directory: `backend`
+- Build command: `pip install -r requirements.txt`
+- Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+- Health check: `/api/health`
 
-### 3.2 Insight chính
-- `Glucose` là biến có tương quan nổi bật nhất với `Outcome`.
-- `BMI`, `Age`, `Pregnancies` cũng có mức liên quan đáng kể.
-- Dữ liệu có xu hướng mất cân bằng lớp nên cần chiến lược xử lý khi huấn luyện.
+Sau khi deploy xong:
 
----
+- Giao dien o: `https://URL_CUA_RENDER_APP`
+- API health o: `https://URL_CUA_RENDER_APP/api/health`
+- API predict o: `https://URL_CUA_RENDER_APP/api/predict`
+- API history o: `https://URL_CUA_RENDER_APP/api/history`
+- Swagger docs o: `https://URL_CUA_RENDER_APP/docs`
 
-## 4) Chọn feature
+## Frontend da doi the nao
 
-### 4.1 Chiến lược hiện tại
-- Giữ toàn bộ 8 biến gốc của bộ dữ liệu để đảm bảo:
-  - Dễ giải thích.
-  - Không mất thông tin y khoa quan trọng.
-  - Phù hợp triển khai nhanh cho phiên bản báo cáo đầu.
+Frontend khong con can URL backend public nua.
 
-### 4.2 Hướng mở rộng
-- Feature engineering (ví dụ: nhóm tuổi, BMI category).
-- Kiểm định feature importance bằng permutation importance hoặc SHAP.
-- Loại bỏ/bổ sung feature dựa trên hiệu năng và khả năng giải thích.
+Mac dinh:
 
----
+- [frontend/config.js](/C:/Users/84352/Desktop/diabetes-prediction-webapp/frontend/config.js) tro den `/api`
+- Khi FastAPI serve frontend, giao dien va API dung cung domain
+- O tab `Service` van con o override URL, nhung chi la tuy chon
 
-## 5) Chọn mô hình
+## Backend da doi the nao
 
-Notebook huấn luyện: `notebooks/03_Final_Model_Training_and_Save.ipynb`.
+- [backend/main.py](/C:/Users/84352/Desktop/diabetes-prediction-webapp/backend/main.py) gio serve ca thu muc `frontend/`
+- API van giu prefix `/api`
+- [backend/app/api/routes.py](/C:/Users/84352/Desktop/diabetes-prediction-webapp/backend/app/api/routes.py) van giu cac route cu
+- [backend/app/services/history_store.py](/C:/Users/84352/Desktop/diabetes-prediction-webapp/backend/app/services/history_store.py) van ho tro Supabase free va fallback SQLite
 
-### 5.1 Các mô hình đã thử
-- Logistic Regression (class_weight='balanced')
-- Decision Tree
-- Random Forest
+## Train lai model
 
-### 5.2 Kết quả đánh giá (test split hiện tại)
-- **Logistic Regression:** Accuracy ~0.73, ROC-AUC ~0.813.
-- **Decision Tree:** Accuracy ~0.71, ROC-AUC ~0.661.
-- **Random Forest:** Accuracy ~0.75, ROC-AUC ~0.811.
-- **Random Forest (sau GridSearch):** Accuracy ~0.77, ROC-AUC ~0.829.
+Neu ban train lai local:
 
-### 5.3 Mô hình đang triển khai
-- Dùng mô hình đã lưu tại `backend/assets/diabetes_model.pkl`.
-- Pipeline suy luận:
-  1. Nhận input theo đúng thứ tự feature.
-  2. Impute median (`imputer_median.pkl`).
-  3. Scale (`scaler.pkl`).
-  4. Dự đoán xác suất và ngưỡng 0.5 để phân lớp.
-
----
-
-## 6) Ý tưởng xây dựng hiện tại
-
-### 6.1 Ý tưởng sản phẩm
-- Một web app đơn giản, dễ dùng cho người không chuyên kỹ thuật.
-- Trả về cả **xác suất** lẫn **khuyến nghị hành vi** để tăng tính thực tiễn.
-- Có **lịch sử kiểm tra** để theo dõi các lần dự đoán gần nhất.
-
-### 6.2 Ý tưởng kỹ thuật
-- Backend FastAPI tách riêng tầng API, service, schema, model DB.
-- Frontend thuần HTML/CSS/JS để dễ triển khai và demo.
-- Model artifacts lưu file `.pkl`, có thể thay thế nhanh sau mỗi lần retrain.
-
----
-
-## 7) Cấu trúc thư mục
-
-```text
-Project-2-DuDoanTieuDuong/
-├─ backend/
-│  ├─ app/
-│  │  ├─ api/          # route FastAPI
-│  │  ├─ models/       # ORM models
-│  │  ├─ schemas/      # Pydantic schemas
-│  │  ├─ services/     # nghiệp vụ dự đoán + lịch sử
-│  │  └─ database.py   # kết nối DB
-│  ├─ assets/          # model.pkl, scaler, imputer, stats
-│  ├─ main.py          # entry FastAPI app
-│  ├─ create_tables.py # tạo bảng SQLite
-│  └─ diabetes_checks.db
-├─ data/
-│  └─ raw/diabetes.csv
-├─ frontend/
-│  ├─ index.html
-│  ├─ style.css
-│  └─ app.js
-├─ notebooks/
-│  ├─ 01_EDA_and_Understanding_Data.ipynb
-│  └─ 03_Final_Model_Training_and_Save.ipynb
-└─ README.md
-```
-
----
-
-## 8) Quy trình nghiệp vụ (quan trọng nhất)
-
-### 8.1 Quy trình end-to-end
-1. **Người dùng nhập thông tin sức khỏe** trên form web.
-2. **Frontend gọi API `/api/predict`** gửi dữ liệu JSON.
-3. **Backend validate dữ liệu** bằng schema.
-4. **Service dự đoán** chạy pipeline tiền xử lý + model.
-5. **Sinh kết quả**: mức nguy cơ, xác suất, lời khuyên.
-6. **Lưu lịch sử kiểm tra** vào SQLite.
-7. **Frontend hiển thị kết quả** + radar chart so với median tham chiếu.
-8. (Tuỳ chọn) **Frontend gọi `/api/history`** để hiển thị các lần gần nhất.
-
-### 8.2 Mô tả vai trò theo thành phần
-- **Frontend:** thu thập input, hiển thị trực quan kết quả.
-- **API layer:** nhận request, điều phối service.
-- **Prediction service:** xử lý inference.
-- **History service + DB:** lưu và truy xuất lịch sử.
-- **Model artifacts:** “bộ não” dự đoán, có thể version hóa.
-
-### 8.3 Luồng dữ liệu chính
-- `User Input` → `FastAPI /predict` → `Imputer` → `Scaler` → `Model`
-→ `PredictionOutput + Advice` → `SQLite history` → `Frontend UI`.
-
----
-
-## 9) Các bước cần thiết cho Báo cáo lần 1
-
-### 9.1 Phần nội dung bắt buộc
-1. **Giới thiệu đề tài**
-   - Bối cảnh, mục tiêu, phạm vi bài toán.
-2. **Mô tả dữ liệu**
-   - Nguồn, thuộc tính, target, chất lượng dữ liệu.
-3. **EDA & insight**
-   - Biểu đồ chính, nhận xét quan trọng.
-4. **Tiền xử lý dữ liệu**
-   - Cách xử lý missing ẩn, chia train/test, scaling.
-5. **Thử nghiệm mô hình**
-   - So sánh Logistic/Tree/RandomForest.
-6. **Đánh giá mô hình**
-   - Accuracy, Precision, Recall, F1, ROC-AUC, confusion matrix.
-7. **Kiến trúc hệ thống**
-   - Frontend/Backend/DB/Model artifacts.
-8. **Quy trình nghiệp vụ**
-   - Luồng nhập liệu → dự đoán → lưu lịch sử → hiển thị.
-9. **Kết luận giai đoạn 1 & kế hoạch tiếp theo**
-   - Các hạn chế hiện tại và hướng cải tiến.
-
-### 9.2 Checklist bàn giao báo cáo lần 1
-- [ ] Slide tóm tắt bài toán + dữ liệu + EDA.
-- [ ] Notebook EDA có thể chạy lại.
-- [ ] Notebook training có bảng so sánh mô hình rõ ràng.
-- [ ] Demo web app chạy được local.
-- [ ] Mô tả nghiệp vụ và kiến trúc đã cập nhật vào README.
-- [ ] Đề xuất roadmap cho báo cáo lần 2.
-
----
-
-## 10) Công nghệ sử dụng
-- **Backend:** FastAPI + SQLAlchemy + SQLite
-- **ML model:** Logistic Regression / Decision Tree / Random Forest
-- **Frontend:** HTML/CSS/JavaScript thuần + Chart.js
----
-
-## 11) Chạy ứng dụng
-### 11.1 Backend
-```bash
+```powershell
 cd backend
-python create_tables.py
-uvicorn main:app --reload --port 8000
-```
-> Nếu máy bạn báo thiếu package, cài nhanh:
-
-> Nếu thiếu package, cài nhanh:
-```bash
-pip install fastapi uvicorn sqlalchemy python-dotenv joblib numpy pydantic
+pip install -r requirements.txt
+python scripts\train_diabetes_model.py
 ```
 
+Script se cap nhat:
 
-### 11.2 Frontend
-Bạn có 3 cách chạy frontend (khuyến nghị cách A hoặc B):
+- `backend/assets/diabetes_model.pkl`
+- `backend/assets/imputer_median.pkl`
+- `backend/assets/scaler.pkl`
+- `backend/assets/reference_stats.json`
 
-**A. Dùng Python HTTP server**
-```bash
-cd frontend
-python -m http.server 5500
+Sau do push len repo va redeploy Render service.
+
+## Supabase free
+
+Neu muon luu lich su online:
+
+1. Tao project Supabase free
+2. Chay file [backend/sql/supabase_history.sql](/C:/Users/84352/Desktop/diabetes-prediction-webapp/backend/sql/supabase_history.sql)
+3. Dien `SUPABASE_URL`
+4. Dien `SUPABASE_SERVICE_ROLE_KEY`
+
+Mac dinh env trong [backend/.env.example](/C:/Users/84352/Desktop/diabetes-prediction-webapp/backend/.env.example):
+
+```env
+CORS_ALLOW_ORIGINS=*
+HISTORY_BACKEND=supabase
+SUPABASE_URL=https://URL_CUA_SUPABASE_PROJECT
+SUPABASE_SERVICE_ROLE_KEY=SERVICE_ROLE_KEY_CUA_SUPABASE
+SUPABASE_TABLE=prediction_history
 ```
-**B. Dùng Node.js**
-```bash
-cd frontend
-npx serve . -l 5500
-```
 
-**C. Mở trực tiếp file `frontend/index.html`**
-- Vẫn có thể dùng được trong nhiều trình duyệt, nhưng cách A/B ổn định hơn.
+## Ghi chu
 
-Sau đó truy cập `http://127.0.0.1:5500`.
----
-## 12) API endpoints
-- `GET /` - Welcome message
-- `GET /api/health` - Kiểm tra trạng thái API
-- `POST /api/predict` - Dự đoán nguy cơ tiểu đường
-- `GET /api/history?limit=10` - Lấy lịch sử kiểm tra gần đây
-- `GET /api/reference-stats` - Lấy median tham chiếu cho radar chart
+- Deploi theo kieu 1 web service nay la phuong an khuyen dung cho ban
+- Don gian hon mo hinh `frontend static + backend rieng + ngrok`
+- It loi CORS hon
+- Khong can doi URL moi sau moi lan chay

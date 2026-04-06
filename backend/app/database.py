@@ -1,25 +1,17 @@
-# backend/app/database.py
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-import os
-from dotenv import load_dotenv
+from sqlalchemy.orm import declarative_base, sessionmaker
 
-load_dotenv()  # Nếu dùng .env
+from app.config import get_settings
 
-# SQLite: file db lưu ngay trong backend/
-DATABASE_URL = "sqlite:///./diabetes_checks.db"  # Hoặc os.getenv("DATABASE_URL")
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False}  # Quan trọng cho SQLite + FastAPI
-)
+settings = get_settings()
+connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
 
+engine = create_engine(settings.database_url, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 Base = declarative_base()
 
-# Dependency để dùng trong endpoint (get_db)
+
 def get_db():
     db = SessionLocal()
     try:

@@ -1,0 +1,4 @@
+https://URL_CUA_RENDER_APP/docs
+uvicorn main:app --reload
+
+cd Desktop\diabetes-prediction-webapp\backend
