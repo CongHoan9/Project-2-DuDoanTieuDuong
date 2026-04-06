@@ -47,13 +47,14 @@ Sau khi deploy xong:
 
 ## Frontend da doi the nao
 
-Frontend khong con can URL backend public nua.
+Frontend da co dinh goi `/api` tren cung web service.
 
 Mac dinh:
 
-- [frontend/config.js](/C:/Users/84352/Desktop/diabetes-prediction-webapp/frontend/config.js) tro den `/api`
-- Khi FastAPI serve frontend, giao dien va API dung cung domain
-- O tab `Service` van con o override URL, nhung chi la tuy chon
+- Khong con `config.js` rieng cho API
+- Khong con tab `Service`
+- Giao dien va API dung cung domain khi chay tren Render
+- Browser khong ket noi truc tiep database; FastAPI van la lop an toan de goi model va luu lich su
 
 ## Backend da doi the nao
 

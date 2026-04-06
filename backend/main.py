@@ -6,12 +6,16 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
 from app.config import get_settings
+from app.database import Base, engine
+from app.models import check as _check_models
 
 
 settings = get_settings()
 BACKEND_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BACKEND_DIR.parent / "frontend"
 APP_VERSION = "2.2.0"
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Diabetes Clinical Risk API",

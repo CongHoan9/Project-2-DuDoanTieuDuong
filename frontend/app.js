@@ -58,7 +58,7 @@ let referenceStats = {};
 let clinicalContent = {};
 let modelInfo = {};
 let carePathwayItems = [];
-const apiBase = resolveApiBase();
+const apiBase = DEFAULT_API_BASE;
 
 const countObserver = new IntersectionObserver(
     (entries) => {
@@ -80,45 +80,6 @@ function labelsMap() {
 
 function numericValue(value, fallback = 0) {
     return Number.isFinite(Number(value)) ? Number(value) : fallback;
-}
-
-function storageGet(key) {
-    try {
-        return window.localStorage.getItem(key);
-    } catch (error) {
-        return null;
-    }
-}
-
-function storageSet(key, value) {
-    try {
-        window.localStorage.setItem(key, value);
-    } catch (error) {
-        return null;
-    }
-}
-
-function isPlaceholderValue(value) {
-    const normalized = String(value || "").trim().toUpperCase();
-    return !normalized || normalized.includes("URL_CUA_") || normalized.includes("YOUR-");
-}
-
-function normalizeApiBase(value) {
-    const trimmed = String(value || "").trim();
-    if (!trimmed || isPlaceholderValue(trimmed)) return "";
-
-    const withoutTrailingSlash = trimmed.replace(/\/+$/, "");
-    if (withoutTrailingSlash.endsWith("/api")) {
-        return withoutTrailingSlash;
-    }
-
-    return `${withoutTrailingSlash}/api`;
-}
-
-function resolveApiBase() {
-    const configuredValue = normalizeApiBase(window.__APP_CONFIG__?.API_BASE_URL);
-
-    return configuredValue || DEFAULT_API_BASE;
 }
 
 function buildApiUrl(endpoint) {
@@ -322,6 +283,7 @@ function updateRiskMeter(prediction) {
 function renderResult(prediction) {
     resultPanel.classList.remove("hidden");
     summaryCard.innerHTML = `
+        <span class="section-heading">Tóm tắt hồ sơ</span>
         <h3>${prediction.has_diabetes}</h3>
         <p>${prediction.summary}</p>
     `;
@@ -850,6 +812,7 @@ async function loadHistory() {
 function renderError(message) {
     resultPanel.classList.remove("hidden");
     summaryCard.innerHTML = `
+        <span class="section-heading">Tóm tắt hồ sơ</span>
         <h3>Không thể phân tích hồ sơ</h3>
         <p>${message}</p>
     `;
