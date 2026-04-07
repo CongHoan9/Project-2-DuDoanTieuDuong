@@ -327,7 +327,6 @@ Sau đó truy cập:
 
 ### 12.2 Lưu ý về database local
 - Nếu chưa cấu hình Supabase, app vẫn chạy bằng `SQLite`
-- File lịch sử local là `backend/diabetes_checks.db`
 - `backend/main.py` hiện đã tự tạo bảng local khi ứng dụng khởi động
 
 ### 12.3 Script tạo bảng thủ công
@@ -401,9 +400,9 @@ Thông số chính:
 
 Sau khi deploy:
 
-- Giao diện: `https://URL_CUA_RENDER_APP`
-- Health check: `https://URL_CUA_RENDER_APP/api/health`
-- Docs: `https://URL_CUA_RENDER_APP/docs`
+- Giao diện: `https://diabetes-prediction-app-xgrp.onrender.com`
+- Health check: `https://diabetes-prediction-app-xgrp.onrender.com/api/health`
+- Docs: `https://diabetes-prediction-app-xgrp.onrender.com/docs`
 
 ## 16) Lưu lịch sử online với Supabase
 
