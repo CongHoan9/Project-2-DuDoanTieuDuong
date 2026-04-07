@@ -1,0 +1,894 @@
+GIẢI THÍCH HỆ THỐNG WEB APP DỰ ĐOÁN TIỂU ĐƯỜNG
+================================================
+
+1. TỔNG QUAN HỆ THỐNG
+------------------------------------------------
+Project này được chia thành 2 phần chính:
+
+1. Frontend
+- Nằm trong thư mục: frontend/
+- Gồm:
+  - index.html: khung giao diện
+  - style.css: giao diện và bố cục
+  - ui.js: các helper UI như animation số, đổi tab, tô màu trạng thái
+  - app.js: logic chính của web, gọi API, render dữ liệu
+
+2. Backend
+- Nằm trong thư mục: backend/
+- Dùng FastAPI để:
+  - serve frontend
+  - nhận request từ frontend
+  - chạy model machine learning
+  - lưu lịch sử vào SQLite
+
+3. Database
+- Dùng SQLite local
+- File DB mặc định:
+  - backend/diabetes_checks.db
+- Dùng để lưu lịch sử các lần dự đoán
+
+4. Model AI / ML
+- Model đã train sẵn nằm trong:
+  - backend/assets/
+- Khi backend chạy, nó load các file:
+  - diabetes_model.pkl
+  - imputer_median.pkl
+  - scaler.pkl
+  - reference_stats.json
+
+
+2. FRONTEND LÀM GÌ
+------------------------------------------------
+Frontend có nhiệm vụ:
+
+1. Hiển thị form nhập dữ liệu
+- Người dùng nhập 8 chỉ số:
+  - Pregnancies
+  - Glucose
+  - BloodPressure
+  - SkinThickness
+  - Insulin
+  - BMI
+  - DiabetesPedigreeFunction
+  - Age
+
+2. Gửi dữ liệu sang backend
+- File frontend/app.js lấy dữ liệu từ form
+- Sau đó gọi:
+  - POST /api/predict
+
+3. Nhận kết quả từ backend
+- Backend trả về:
+  - xác suất nguy cơ
+  - kết luận
+  - điểm nguy cơ
+  - cảnh báo
+  - hành động gợi ý
+  - metric insights
+
+4. Render kết quả lên giao diện
+- Hiện phần kết luận chính
+- Hiện risk meter
+- Hiện quick signals
+- Hiện radar chart
+- Hiện bảng history
+- Hiện tab Clinical Library
+
+5. Gọi thêm các API phụ để dựng giao diện
+- GET /api/reference-stats
+- GET /api/model-info
+- GET /api/clinical-content
+- GET /api/history
+
+
+3. BACKEND LÀM GÌ
+------------------------------------------------
+Backend là phần xử lý chính của hệ thống.
+
+File quan trọng nhất:
+- backend/main.py
+
+Vai trò của backend:
+
+1. Khởi tạo FastAPI app
+- Tạo app API
+- Gắn CORS
+- include router /api
+
+2. Tạo bảng SQLite tự động
+- Ngay khi app khởi động, backend chạy:
+  - Base.metadata.create_all(bind=engine)
+- Mục đích:
+  - nếu chưa có bảng thì tự tạo
+  - không cần chạy script tạo DB riêng nữa
+
+3. Serve frontend luôn
+- Nếu thư mục frontend/ tồn tại thì backend mount:
+  - /
+- Kết quả:
+  - chỉ cần chạy 1 web service là có cả frontend lẫn backend
+
+4. Nhận request từ frontend
+- Các route nằm trong:
+  - backend/app/api/routes.py
+
+5. Gọi prediction service
+- Backend không tự viết logic model ngay trong route
+- Route gọi sang:
+  - backend/app/services/prediction.py
+
+6. Lưu lịch sử vào SQLite
+- Sau khi dự đoán xong, backend gọi:
+  - create_check(...)
+- Hàm này lưu input + output vào database SQLite
+
+
+4. CÁC API ĐANG CÓ
+------------------------------------------------
+1. GET /api/health
+- Dùng để kiểm tra backend còn sống không
+- Trả về:
+  - status
+  - version
+  - history_backend
+
+2. POST /api/predict
+- API quan trọng nhất
+- Nhận 8 chỉ số sức khỏe
+- Chạy model
+- Tính xác suất
+- Sinh kết luận
+- Lưu lịch sử vào SQLite
+- Trả kết quả về frontend
+
+3. GET /api/history
+- Lấy các lần dự đoán gần đây
+- Hiển thị trong tab History
+
+4. GET /api/reference-stats
+- Trả về median tham chiếu
+- Dùng để vẽ radar chart và thư viện lâm sàng
+
+5. GET /api/model-info
+- Trả về metadata của model
+- Ví dụ:
+  - loại model
+  - độ chính xác
+  - ROC-AUC
+  - best params
+
+6. GET /api/clinical-content
+- Trả về các nội dung giải thích lâm sàng
+- Ví dụ:
+  - nhãn tiếng Việt cho feature
+  - guideline text
+  - ranges tham chiếu
+  - pathway hành động
+
+
+5. LUỒNG CHẠY KHI APP KHỞI ĐỘNG
+------------------------------------------------
+Bước 1:
+- Render hoặc máy local chạy:
+  - uvicorn backend/main.py
+  hoặc lệnh tương đương qua uvicorn
+
+Bước 2:
+- backend/main.py được load
+
+Bước 3:
+- settings được đọc từ .env
+
+Bước 4:
+- kết nối SQLite được tạo
+
+Bước 5:
+- Base.metadata.create_all(bind=engine)
+- Nếu chưa có bảng lịch sử thì tạo bảng
+
+Bước 6:
+- app.include_router(router)
+- Route /api bắt đầu hoạt động
+
+Bước 7:
+- app.mount("/", StaticFiles(...))
+- Frontend được serve luôn trên cùng domain
+
+Bước 8:
+- Người dùng mở web
+- Trình duyệt tải:
+  - index.html
+  - style.css
+  - ui.js
+  - app.js
+
+Bước 9:
+- app.js khởi tạo UI
+- app.js gọi một số API nền như:
+  - /api/reference-stats
+  - /api/model-info
+  - /api/clinical-content
+  - /api/history
+
+Bước 10:
+- Giao diện hiện đầy đủ dữ liệu nền
+- Người dùng bắt đầu nhập thông tin
+
+
+6. LUỒNG CHẠY FRONTEND CỤ THỂ
+------------------------------------------------
+Frontend chạy theo logic sau:
+
+1. index.html load trước
+- Tạo toàn bộ DOM giao diện
+
+2. ui.js load tiếp
+- Khai báo window.DiabetesUI
+- Cung cấp helper dùng chung:
+  - animateMetricNumber
+  - primeCountUp
+  - observeCountUps
+  - activateTab
+  - toneClass
+  - riskTone
+  - updateRiskMeter
+
+3. app.js load sau
+- Lấy các phần tử DOM bằng getElementById
+- Gắn event listener
+- Gọi API để lấy dữ liệu nền
+- Khi người dùng submit form thì app.js gọi backend
+
+
+7. LUỒNG CHẠY BACKEND CỤ THỂ
+------------------------------------------------
+Backend xử lý theo lớp:
+
+1. API layer
+- File:
+  - backend/app/api/routes.py
+- Việc của layer này:
+  - nhận request
+  - validate dữ liệu bằng schema
+  - gọi service phù hợp
+  - trả response
+
+2. Service layer
+- File:
+  - backend/app/services/prediction.py
+  - backend/app/services/history.py
+  - backend/app/services/history_store.py
+- Việc của layer này:
+  - xử lý logic nghiệp vụ
+  - load model
+  - chạy pipeline ML
+  - sinh content giải thích
+  - lưu / đọc lịch sử
+
+3. Database layer
+- File:
+  - backend/app/database.py
+  - backend/app/models/
+- Việc của layer này:
+  - tạo engine SQLite
+  - quản lý session
+  - định nghĩa bảng
+
+
+8. QUY TRÌNH GỌI MODEL
+------------------------------------------------
+Model không được gọi trực tiếp từ frontend.
+
+Quy trình đúng là:
+
+1. Frontend gửi JSON đến:
+- POST /api/predict
+
+2. FastAPI route nhận request
+- Route:
+  - predict(data: PredictionInput)
+
+3. Schema PredictionInput validate dữ liệu
+- Kiểm tra:
+  - có đủ field không
+  - kiểu dữ liệu có hợp lệ không
+
+4. Route gọi:
+- predict_diabetes(data)
+
+5. Trong prediction service:
+- Chuyển input thành đúng thứ tự feature
+- Dùng:
+  - imputer_median.pkl để điền dữ liệu thiếu / zero-as-missing
+  - scaler.pkl để scale dữ liệu
+  - diabetes_model.pkl để predict probability
+
+6. Sau khi model trả probability
+- Service còn cộng thêm lớp logic lâm sàng:
+  - tính risk score
+  - phân risk band
+  - sinh advice
+  - sinh alerts
+  - sinh metric insights
+  - sinh key drivers
+
+7. Route nhận kết quả prediction
+- Sau đó gọi:
+  - create_check(data.model_dump(), result)
+
+8. create_check lưu vào SQLite
+- Lưu:
+  - input
+  - probability
+  - label
+  - summary
+  - timestamp
+
+9. Route trả JSON về frontend
+
+10. Frontend render kết quả
+
+
+9. MỘT SỰ KIỆN CỤ THỂ: NGƯỜI DÙNG BẤM NÚT PREDICT
+------------------------------------------------
+Đây là ví dụ dễ hiểu nhất.
+
+Bối cảnh:
+- Người dùng đã nhập đủ 8 chỉ số trên form
+- Sau đó bấm nút Predict
+
+Luồng chi tiết:
+
+Bước 1:
+- Sự kiện submit của form được kích hoạt trong frontend/app.js
+
+Bước 2:
+- app.js chạy hàm lấy dữ liệu từ form:
+  - getInputPayload()
+
+Ví dụ dữ liệu thu được:
+- Pregnancies = 2
+- Glucose = 125
+- BloodPressure = 78
+- SkinThickness = 30
+- Insulin = 90
+- BMI = 28.6
+- DiabetesPedigreeFunction = 0.627
+- Age = 42
+
+Bước 3:
+- app.js gửi fetch request đến:
+  - /api/predict
+
+Body JSON:
+- {
+    "Pregnancies": 2,
+    "Glucose": 125,
+    "BloodPressure": 78,
+    "SkinThickness": 30,
+    "Insulin": 90,
+    "BMI": 28.6,
+    "DiabetesPedigreeFunction": 0.627,
+    "Age": 42
+  }
+
+Bước 4:
+- FastAPI route /api/predict nhận request
+
+Bước 5:
+- PredictionInput kiểm tra dữ liệu đầu vào
+- Nếu thiếu hoặc sai kiểu thì backend trả lỗi 422
+
+Bước 6:
+- Nếu hợp lệ, backend gọi:
+  - predict_diabetes(data)
+
+Bước 7:
+- prediction.py sắp dữ liệu đúng thứ tự feature
+- Chuyển thành mảng số cho model
+
+Bước 8:
+- Các cột có zero-as-missing sẽ được nội suy bằng median nếu cần
+
+Bước 9:
+- Dữ liệu được scale bằng scaler
+
+Bước 10:
+- Model RandomForest chạy predict_proba
+- Trả xác suất ví dụ:
+  - 0.43
+
+Bước 11:
+- Service cộng thêm logic lâm sàng
+- Ví dụ sinh ra:
+  - risk_score = 43
+  - risk_band = "Cần đánh giá thêm"
+  - has_diabetes = "Nguy cơ trung bình đến cao"
+  - alerts = [...]
+  - actions = [...]
+  - metric_insights = [...]
+
+Bước 12:
+- Route gọi:
+  - create_check(...)
+- Input và output được lưu vào SQLite
+
+Bước 13:
+- Backend trả JSON về frontend
+
+Bước 14:
+- frontend/app.js nhận response
+
+Bước 15:
+- app.js gọi các hàm render:
+  - renderResult(...)
+  - renderAlerts(...)
+  - renderActions(...)
+  - renderMetricInsights(...)
+  - renderRadarChart(...)
+  - renderHistoryTable(...)
+
+Bước 16:
+- ui.js hỗ trợ animation:
+  - risk meter quay đến đúng mức
+  - số % đếm tăng dần
+  - tab active được cập nhật
+
+Bước 17:
+- Người dùng thấy:
+  - kết luận
+  - xác suất
+  - lời khuyên
+  - radar chart
+  - lịch sử vừa được thêm vào History
+
+
+10. MỘT SỰ KIỆN KHÁC: MỞ TAB HISTORY
+------------------------------------------------
+Bước 1:
+- Người dùng bấm tab History
+
+Bước 2:
+- Frontend gọi helper:
+  - UI.activateTab(...)
+
+Bước 3:
+- Nếu cần reload dữ liệu, frontend gọi:
+  - GET /api/history
+
+Bước 4:
+- Backend đọc các bản ghi mới nhất trong SQLite
+
+Bước 5:
+- Trả danh sách lịch sử về frontend
+
+Bước 6:
+- Frontend render bảng lịch sử
+
+
+11. TẠI SAO FRONTEND KHÔNG GỌI THẲNG SQLITE
+------------------------------------------------
+Frontend chạy trong browser.
+Browser không nên và gần như không thể làm việc trực tiếp với SQLite local của server theo cách an toàn.
+
+Lý do:
+- SQLite là file database trên server
+- Browser chỉ nên gọi HTTP API
+- Nếu cho frontend gọi thẳng DB thì:
+  - sai kiến trúc
+  - không an toàn
+  - lộ logic hệ thống
+  - không có chỗ chạy model ML
+
+Vì vậy kiến trúc đúng là:
+- Frontend -> API -> Service -> SQLite / Model
+
+
+12. VAI TRÒ TỪNG FILE QUAN TRỌNG
+------------------------------------------------
+1. frontend/index.html
+- Khung giao diện chính
+
+2. frontend/style.css
+- Giao diện, màu sắc, layout, responsive
+
+3. frontend/ui.js
+- Các helper UI dùng chung
+- Không chứa nghiệp vụ dự đoán
+
+4. frontend/app.js
+- Logic chính của web
+- Gọi API
+- Nhận response
+- Render dữ liệu nghiệp vụ
+
+5. backend/main.py
+- Điểm vào của backend
+- Tạo app FastAPI
+- Tạo bảng SQLite
+- Mount frontend
+
+6. backend/app/api/routes.py
+- Khai báo các endpoint /api
+
+7. backend/app/services/prediction.py
+- Logic dự đoán trung tâm
+- Load model
+- Tiền xử lý
+- Chấm điểm
+- Sinh kết luận
+
+8. backend/app/services/history.py
+- Logic tạo và lấy lịch sử
+
+9. backend/app/services/history_store.py
+- Lớp thao tác với nơi lưu lịch sử
+- Hiện chỉ dùng SQLite local
+
+10. backend/app/database.py
+- Engine, Session, Base cho SQLAlchemy
+
+11. backend/app/models/
+- Định nghĩa bảng database
+
+
+13. TÓM TẮT NGẮN GỌN TOÀN BỘ LUỒNG
+------------------------------------------------
+Người dùng nhập form
+-> frontend/app.js lấy dữ liệu
+-> gọi POST /api/predict
+-> FastAPI route nhận request
+-> prediction service xử lý input
+-> imputer + scaler + model chạy
+-> sinh kết quả + cảnh báo + lời khuyên
+-> lưu lịch sử vào SQLite
+-> trả JSON về frontend
+-> frontend render toàn bộ dashboard
+
+
+14. CÁCH HIỂU NHANH NHẤT
+------------------------------------------------
+Nếu cần nhớ ngắn gọn thì chỉ cần thuộc 3 ý:
+
+1. Frontend
+- nhập dữ liệu
+- gọi API
+- hiển thị kết quả
+
+2. Backend
+- nhận dữ liệu
+- chạy model
+- lưu lịch sử
+- trả kết quả
+
+3. Database SQLite
+- chỉ dùng để lưu lịch sử các lần dự đoán
+
+
+15. SEQUENCE CHI TIẾT THEO TỪNG BƯỚC
+------------------------------------------------
+Phần này viết theo kiểu sequence để nhìn là biết request đi qua đâu.
+
+A. Sequence khi người dùng bấm nút Predict
+------------------------------------------------
+1. Người dùng bấm nút submit trên form
+- File:
+  - frontend/app.js
+- Hàm / vị trí:
+  - form.addEventListener("submit", async (event) => { ... })
+- Việc xảy ra:
+  - chặn reload mặc định của form bằng event.preventDefault()
+  - bắt đầu luồng dự đoán
+
+2. Frontend đọc toàn bộ dữ liệu từ form
+- File:
+  - frontend/app.js
+- Hàm:
+  - getInputPayload()
+- Việc xảy ra:
+  - lấy 8 input từ DOM
+  - ép về int hoặc float
+  - tạo object JSON để gửi sang backend
+
+3. Frontend gọi API dự đoán
+- File:
+  - frontend/app.js
+- Hàm:
+  - buildApiUrl("predict")
+  - fetch(...)
+- Việc xảy ra:
+  - ghép endpoint thành /api/predict
+  - gửi request POST với Content-Type = application/json
+  - body là JSON người dùng vừa nhập
+
+4. Request đi vào backend route /api/predict
+- File:
+  - backend/app/api/routes.py
+- Hàm:
+  - predict(data: PredictionInput)
+- Việc xảy ra:
+  - FastAPI nhận request
+  - tự validate request body theo schema PredictionInput
+  - nếu sai field hoặc sai kiểu thì trả lỗi 422
+
+5. Backend gọi hàm suy luận chính
+- File:
+  - backend/app/api/routes.py
+- Hàm:
+  - predict(...)
+- Gọi sang:
+  - backend/app/services/prediction.py
+  - predict_diabetes(data)
+- Việc xảy ra:
+  - route chuyển phần tính toán sang service layer
+
+6. Service chuẩn hóa input theo đúng thứ tự model cần
+- File:
+  - backend/app/services/prediction.py
+- Hàm:
+  - predict_diabetes(data)
+- Việc xảy ra:
+  - đọc dữ liệu theo FEATURE_ORDER
+  - chuyển input thành vector số
+  - xử lý các cột thuộc nhóm ZERO_AS_MISSING nếu cần
+
+7. Service nạp các artifact phục vụ model
+- File:
+  - backend/app/services/prediction.py
+- Các hàm cache / load liên quan:
+  - các hàm load model, imputer, scaler, reference stats trong file này
+- Việc xảy ra:
+  - load diabetes_model.pkl
+  - load imputer_median.pkl
+  - load scaler.pkl
+  - load reference_stats.json
+
+8. Service chạy pipeline ML
+- File:
+  - backend/app/services/prediction.py
+- Hàm:
+  - predict_diabetes(data)
+- Việc xảy ra:
+  - impute median cho dữ liệu thiếu
+  - scale dữ liệu
+  - gọi model.predict_proba(...)
+  - lấy model_probability
+
+9. Service chạy lớp logic lâm sàng
+- File:
+  - backend/app/services/prediction.py
+- Hàm:
+  - predict_diabetes(data)
+- Việc xảy ra:
+  - đối chiếu từng metric với METRIC_RULES
+  - tính điểm từng chỉ số
+  - sinh risk_score
+  - sinh risk_band
+  - sinh clinical_probability
+  - sinh summary
+  - sinh clinical_interpretation
+  - sinh advice
+  - sinh alerts
+  - sinh recommended_actions
+  - sinh metric_insights
+  - sinh key_drivers
+
+10. Service trả object PredictionOutput về route
+- File:
+  - backend/app/services/prediction.py
+- Hàm:
+  - predict_diabetes(data)
+- Trả về:
+  - object kết quả đầy đủ cho frontend
+
+11. Route lưu lịch sử vào SQLite
+- File:
+  - backend/app/api/routes.py
+- Hàm:
+  - predict(...)
+- Gọi sang:
+  - backend/app/services/history.py
+  - create_check(data.model_dump(), result)
+- Việc xảy ra:
+  - lấy input và output vừa có
+  - chuẩn bị bản ghi lịch sử
+
+12. History service ghi dữ liệu vào database
+- File:
+  - backend/app/services/history.py
+  - backend/app/services/history_store.py
+- Hàm:
+  - create_check(...)
+  - get_history_store()
+  - SqliteHistoryStore.create(...)
+- Việc xảy ra:
+  - mở session SQLite
+  - insert bản ghi mới
+  - commit vào file diabetes_checks.db
+
+13. Backend trả JSON response về cho frontend
+- File:
+  - backend/app/api/routes.py
+- Hàm:
+  - predict(...)
+- Việc xảy ra:
+  - response body chính là PredictionOutput
+
+14. Frontend nhận JSON prediction
+- File:
+  - frontend/app.js
+- Hàm / vị trí:
+  - trong khối submit, sau dòng:
+    - const prediction = await response.json()
+- Việc xảy ra:
+  - parse response thành object prediction
+
+15. Frontend cập nhật risk meter và các chỉ số chính
+- File:
+  - frontend/app.js
+  - frontend/ui.js
+- Hàm:
+  - UI.updateRiskMeter(...)
+- Việc xảy ra:
+  - cập nhật vòng risk meter
+  - animate riskPercent
+  - animate modelProbability
+  - animate clinicalProbability
+  - cập nhật risk band và certainty
+
+16. Frontend render phần kết luận chính
+- File:
+  - frontend/app.js
+- Hàm:
+  - renderResult(prediction)
+- Việc xảy ra:
+  - đổ has_diabetes
+  - đổ risk_score
+  - đổ summary
+  - đổ advice
+  - đổ disclaimer
+
+17. Frontend render các phần chi tiết
+- File:
+  - frontend/app.js
+- Hàm:
+  - renderAlerts(prediction.alerts || [])
+  - renderActions(prediction.recommended_actions || [])
+  - renderMetricInsights(prediction.metric_insights || [])
+- Việc xảy ra:
+  - dựng card cảnh báo
+  - dựng card khuyến nghị hành động
+  - dựng card giải thích từng chỉ số
+
+18. Frontend vẽ radar chart nếu đã có reference stats
+- File:
+  - frontend/app.js
+- Hàm:
+  - renderRadarChart(input)
+- Việc xảy ra:
+  - so input hiện tại với median tham chiếu
+  - vẽ chart bằng Chart.js
+
+19. Frontend lưu trạng thái tạm ở local storage
+- File:
+  - frontend/app.js
+- Hàm:
+  - savePredictionState(prediction, input)
+- Việc xảy ra:
+  - lưu kết quả gần nhất để reload trang không mất ngay
+
+20. Frontend chuyển về tab predict và tải lại history
+- File:
+  - frontend/app.js
+  - frontend/ui.js
+- Hàm:
+  - UI.activateTab("predict", ...)
+  - loadHistory()
+- Việc xảy ra:
+  - giữ người dùng ở đúng tab kết quả
+  - gọi lại /api/history để thấy bản ghi vừa lưu
+
+
+B. Sequence khi frontend tải dữ liệu nền lúc mới mở web
+------------------------------------------------
+1. Trình duyệt mở /
+- File:
+  - backend/main.py
+- Vị trí:
+  - app.mount("/", StaticFiles(...), name="frontend")
+- Việc xảy ra:
+  - FastAPI trả index.html và các file frontend
+
+2. index.html load ui.js trước
+- File:
+  - frontend/index.html
+- Việc xảy ra:
+  - tạo window.DiabetesUI
+
+3. index.html load app.js sau
+- File:
+  - frontend/index.html
+  - frontend/app.js
+- Việc xảy ra:
+  - app.js bắt đầu khởi tạo toàn bộ màn hình
+
+4. app.js chạy bootstrap()
+- File:
+  - frontend/app.js
+- Hàm:
+  - bootstrap()
+- Việc xảy ra:
+  - gọi các API nền cần cho UI
+
+5. bootstrap gọi các endpoint nền
+- File:
+  - frontend/app.js
+- Hàm:
+  - fetchJson("reference-stats")
+  - fetchJson("model-info")
+  - fetchJson("clinical-content")
+  - loadHistory()
+- Việc xảy ra:
+  - lấy median tham chiếu
+  - lấy thông tin model
+  - lấy nội dung lâm sàng
+  - lấy lịch sử gần đây
+
+6. bootstrap render dữ liệu nền ra giao diện
+- File:
+  - frontend/app.js
+- Hàm:
+  - renderModelInfo(...)
+  - renderReferenceLibrary(...)
+  - renderCarePathway(...)
+  - renderEducation(...)
+  - renderHistoryTable(...)
+  - restorePredictionState()
+  - renderQuickSignals()
+- Việc xảy ra:
+  - hoàn tất giao diện trước khi người dùng bấm Predict
+
+
+C. Sequence khi backend khởi động
+------------------------------------------------
+1. Chạy lệnh uvicorn
+- File entry:
+  - backend/main.py
+
+2. main.py đọc settings
+- File:
+  - backend/main.py
+  - backend/app/config.py
+- Việc xảy ra:
+  - lấy CORS_ALLOW_ORIGINS
+  - lấy DATABASE_URL
+
+3. main.py tạo bảng SQLite
+- File:
+  - backend/main.py
+- Lệnh:
+  - Base.metadata.create_all(bind=engine)
+- Việc xảy ra:
+  - nếu DB chưa có bảng thì tạo luôn
+
+4. main.py tạo FastAPI app và include router
+- File:
+  - backend/main.py
+- Lệnh:
+  - app = FastAPI(...)
+  - app.include_router(router)
+
+5. main.py mount frontend
+- File:
+  - backend/main.py
+- Lệnh:
+  - app.mount("/", StaticFiles(...), name="frontend")
+
+6. App sẵn sàng nhận request
+- Các request chính:
+  - GET /api/health
+  - POST /api/predict
+  - GET /api/history
+  - GET /api/reference-stats
+  - GET /api/model-info
+  - GET /api/clinical-content
