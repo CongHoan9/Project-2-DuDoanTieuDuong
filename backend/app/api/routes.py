@@ -42,7 +42,7 @@ async def predict(data: PredictionInput):
 
 
 @router.get("/history", response_model=list[CheckHistorySummaryResponse])
-def get_history(limit: int = 10):
+def get_history(limit: int | None = None):
     return get_recent_checks(limit)
 
 

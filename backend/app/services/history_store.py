@@ -50,16 +50,14 @@ class DatabaseHistoryStore:
         finally:
             db.close()
 
-    def get_recent_checks(self, limit: int = 10) -> list[CheckHistory]:
+    def get_recent_checks(self, limit: int | None = None) -> list[CheckHistory]:
         db = SessionLocal()
         try:
-            safe_limit = max(1, min(limit, 100))
-            return (
-                db.query(CheckHistory)
-                .order_by(CheckHistory.created_at.desc(), CheckHistory.id.desc())
-                .limit(safe_limit)
-                .all()
-            )
+            query = db.query(CheckHistory).order_by(CheckHistory.created_at.desc(), CheckHistory.id.desc())
+            if limit is not None:
+                safe_limit = max(1, min(limit, 1000))
+                query = query.limit(safe_limit)
+            return query.all()
         finally:
             db.close()
 

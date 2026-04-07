@@ -1295,3 +1295,541 @@ historyBody.addEventListener("keydown", (event) => {
     event.preventDefault();
     selectHistoryRecord(Number(trigger.dataset.historyId));
 });
+
+const historyV2State = {
+    rows: [],
+    filteredRows: [],
+    selectedId: null,
+    detailCache: new Map(),
+    activeRequestId: 0,
+    filtersBound: false,
+    detailBound: false
+};
+
+const historyV2FallbackLabels = {
+    Pregnancies: "S\u1ed1 l\u1ea7n mang thai",
+    Glucose: "\u0110\u01b0\u1eddng huy\u1ebft",
+    BloodPressure: "Huy\u1ebft \u00e1p t\u00e2m tr\u01b0\u01a1ng",
+    SkinThickness: "\u0110\u1ed9 d\u00e0y da",
+    Insulin: "Insulin",
+    BMI: "BMI",
+    DiabetesPedigreeFunction: "Ti\u1ec1n s\u1eed gia \u0111\u00ecnh",
+    Age: "Tu\u1ed5i"
+};
+
+const historyV2FallbackUnits = {
+    Pregnancies: "l\u1ea7n",
+    Glucose: "mg/dL",
+    BloodPressure: "mmHg",
+    SkinThickness: "mm",
+    Insulin: "mu U/mL",
+    BMI: "kg/m2",
+    DiabetesPedigreeFunction: "\u0111i\u1ec3m",
+    Age: "tu\u1ed5i"
+};
+
+function historyNormalizeText(value) {
+    return String(value ?? "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+}
+
+function historyEscapeHtml(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function historyFormatDate(value) {
+    return new Date(value).toLocaleString("vi-VN");
+}
+
+function historyFormatMetricValue(metric, value) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return "-";
+    if (metric === "Pregnancies" || metric === "Age") return `${Math.round(numericValue)}`;
+    if (metric === "DiabetesPedigreeFunction") return numericValue.toFixed(3);
+    return numericValue.toFixed(1);
+}
+
+function historyLabelsMap() {
+    return historyV2FallbackLabels;
+}
+
+function historyUnitsMap() {
+    return historyV2FallbackUnits;
+}
+
+function ensureHistoryV2Layout() {
+    const legacyStyle = document.getElementById("historyEnhancementStyles");
+    if (legacyStyle) legacyStyle.remove();
+
+    const historyGrid = document.querySelector('[data-tab-panel="history"] .dashboard-grid--history');
+    const historyPanel = historyGrid?.querySelector(".history-panel");
+    const historyHeading = historyPanel?.querySelector(".section-heading");
+    const tableWrap = historyPanel?.querySelector(".table-wrap");
+    const tableHeadRow = historyPanel?.querySelector("#historyTable thead tr");
+
+    if (!historyGrid || !historyPanel || !historyHeading || !tableWrap || !tableHeadRow) {
+        return null;
+    }
+
+    historyPanel.classList.remove("history-panel--enhanced");
+    historyHeading.textContent = "Lịch sử kiểm tra";
+    tableWrap.classList.add("history-table-wrap");
+    tableHeadRow.innerHTML = `
+        <th>Thời gian</th>
+        <th>Kết luận</th>
+        <th>Nguy cơ</th>
+        <th>Glucose</th>
+        <th>BMI</th>
+        <th>Tuổi</th>
+    `;
+
+    let toolbar = historyPanel.querySelector(".history-toolbar");
+    if (!toolbar) {
+        toolbar = document.createElement("div");
+        toolbar.className = "history-toolbar";
+        toolbar.innerHTML = `
+            <label class="history-filter history-filter--search">
+                <span>Tìm kiếm</span>
+                <input id="historyQuery" type="search" placeholder="Kết luận, nguy cơ, glucose..." />
+            </label>
+            <div class="history-toolbar__row">
+                <label class="history-filter">
+                    <span>Kết luận</span>
+                    <select id="historyOutcomeFilter">
+                        <option value="">Tất cả</option>
+                        <option value="nguy co thap">Nguy cơ thấp</option>
+                        <option value="can danh gia them">Cần đánh giá thêm</option>
+                        <option value="co nguy co cao">Có nguy cơ cao</option>
+                    </select>
+                </label>
+                <label class="history-filter">
+                    <span>Mức nguy cơ</span>
+                    <select id="historyRiskFilter">
+                        <option value="">Tất cả</option>
+                        <option value="thap">Thấp</option>
+                        <option value="theo doi som">Theo dõi sớm</option>
+                        <option value="trung binh">Trung bình</option>
+                        <option value="cao">Cao</option>
+                        <option value="rat cao">Rất cao</option>
+                    </select>
+                </label>
+                <label class="history-filter">
+                    <span>Sắp xếp</span>
+                    <select id="historySortFilter">
+                        <option value="newest">Mới nhất</option>
+                        <option value="oldest">Cũ nhất</option>
+                        <option value="risk_desc">Risk giảm dần</option>
+                        <option value="risk_asc">Risk tăng dần</option>
+                    </select>
+                </label>
+                <button id="historyResetButton" type="button" class="button-secondary history-reset-button">Đặt lại</button>
+            </div>
+        `;
+        historyPanel.insertBefore(toolbar, tableWrap);
+    }
+
+    let statusRow = historyPanel.querySelector(".history-table-status");
+    if (!statusRow) {
+        statusRow = document.createElement("div");
+        statusRow.className = "history-table-status";
+        statusRow.innerHTML = '<span id="historyCountLabel">Đang tải lịch sử...</span>';
+        historyPanel.insertBefore(statusRow, tableWrap);
+    }
+
+    let detailPanel = historyGrid.querySelector(".history-detail-panel");
+    if (!detailPanel) {
+        detailPanel = document.createElement("article");
+        detailPanel.className = "panel history-detail-panel";
+        historyPanel.insertAdjacentElement("afterend", detailPanel);
+    }
+
+    detailPanel.className = "panel history-detail-panel";
+
+    if (!detailPanel.querySelector("#historyDetailContent")) {
+        detailPanel.innerHTML = `
+            <div class="section-heading">Chi tiết lần kiểm tra</div>
+            <div id="historyDetailContent" class="history-detail-shell">
+                <article class="history-record history-record--empty">
+                    <h3>Chọn một bản ghi</h3>
+                    <p>Chi tiết sẽ được tải khi bạn chọn một dòng trong lịch sử ở bên trên.</p>
+                </article>
+            </div>
+        `;
+    } else {
+        const detailHeading = detailPanel.querySelector(".section-heading");
+        if (detailHeading) detailHeading.textContent = "Chi tiết lần kiểm tra";
+    }
+
+    if (!historyV2State.filtersBound) {
+        const rerender = () => renderHistory(historyV2State.rows);
+        toolbar.querySelector("#historyQuery")?.addEventListener("input", rerender);
+        toolbar.querySelector("#historyOutcomeFilter")?.addEventListener("change", rerender);
+        toolbar.querySelector("#historyRiskFilter")?.addEventListener("change", rerender);
+        toolbar.querySelector("#historySortFilter")?.addEventListener("change", rerender);
+        toolbar.querySelector("#historyResetButton")?.addEventListener("click", () => {
+            toolbar.querySelector("#historyQuery").value = "";
+            toolbar.querySelector("#historyOutcomeFilter").value = "";
+            toolbar.querySelector("#historyRiskFilter").value = "";
+            toolbar.querySelector("#historySortFilter").value = "newest";
+            renderHistory(historyV2State.rows);
+        });
+        historyV2State.filtersBound = true;
+    }
+
+    if (!historyV2State.detailBound) {
+        detailPanel.addEventListener("click", (event) => {
+            if (!event.target.closest("[data-close-history-detail]")) return;
+            closeHistoryDetail();
+        });
+        historyV2State.detailBound = true;
+    }
+
+    return {
+        toolbar,
+        detailPanel,
+        detailContent: detailPanel.querySelector("#historyDetailContent"),
+        countLabel: historyPanel.querySelector("#historyCountLabel")
+    };
+}
+
+function getHistoryV2Controls() {
+    const refs = ensureHistoryV2Layout();
+    if (!refs) return null;
+
+    return {
+        queryInput: refs.toolbar.querySelector("#historyQuery"),
+        outcomeFilter: refs.toolbar.querySelector("#historyOutcomeFilter"),
+        riskFilter: refs.toolbar.querySelector("#historyRiskFilter"),
+        sortFilter: refs.toolbar.querySelector("#historySortFilter"),
+        countLabel: refs.countLabel,
+        detailContent: refs.detailContent
+    };
+}
+
+function renderHistoryV2Placeholder(title, message) {
+    const controls = getHistoryV2Controls();
+    if (!controls?.detailContent) return;
+
+    controls.detailContent.innerHTML = `
+        <article class="history-record history-record--empty">
+            <h3>${historyEscapeHtml(title)}</h3>
+            <p>${historyEscapeHtml(message)}</p>
+        </article>
+    `;
+}
+
+function closeHistoryDetail() {
+    historyV2State.selectedId = null;
+    historyV2State.activeRequestId += 1;
+    renderHistory(historyV2State.rows);
+    renderHistoryV2Placeholder("Chọn một bản ghi", "Chi tiết sẽ được tải khi bạn chọn một dòng trong lịch sử ở bên trên.");
+}
+
+function buildHistoryV2Card(title, body) {
+    return `
+        <article class="stack-card">
+            <h3>${historyEscapeHtml(title)}</h3>
+            <p>${body}</p>
+        </article>
+    `;
+}
+
+function getFilteredHistoryRows() {
+    const controls = getHistoryV2Controls();
+    if (!controls) return historyV2State.rows;
+
+    const query = historyNormalizeText(controls.queryInput.value);
+    const outcome = historyNormalizeText(controls.outcomeFilter.value);
+    const risk = historyNormalizeText(controls.riskFilter.value);
+    const sortBy = controls.sortFilter.value || "newest";
+
+    const rows = historyV2State.rows.filter((item) => {
+        const haystack = historyNormalizeText([
+            item.created_at,
+            item.has_diabetes,
+            item.risk_band,
+            item.glucose,
+            item.bmi,
+            item.age
+        ].join(" "));
+
+        const matchesQuery = !query || haystack.includes(query);
+        const matchesOutcome = !outcome || historyNormalizeText(item.has_diabetes).includes(outcome);
+        const matchesRisk = !risk || historyNormalizeText(item.risk_band).includes(risk);
+
+        return matchesQuery && matchesOutcome && matchesRisk;
+    });
+
+    rows.sort((left, right) => {
+        if (sortBy === "oldest") {
+            return new Date(left.created_at).getTime() - new Date(right.created_at).getTime();
+        }
+        if (sortBy === "risk_desc") {
+            return (right.risk_score ?? 0) - (left.risk_score ?? 0);
+        }
+        if (sortBy === "risk_asc") {
+            return (left.risk_score ?? 0) - (right.risk_score ?? 0);
+        }
+        return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+    });
+
+    return rows;
+}
+
+function renderHistoryV2Detail(detail) {
+    const controls = getHistoryV2Controls();
+    if (!controls?.detailContent) return;
+
+    const input = detail.input_data || {};
+    const prediction = detail.prediction || {};
+    const labels = historyLabelsMap();
+    const units = historyUnitsMap();
+    const summary = prediction.summary || "Chưa có tóm tắt cho bản ghi này.";
+    const outcome = prediction.has_diabetes || "Không rõ";
+    const riskBand = prediction.risk_band || "-";
+    const riskScore = prediction.risk_score ?? "--";
+    const probability = UI.formatPercent(prediction.probability || 0);
+    const savedAt = historyFormatDate(detail.created_at);
+    const generatedAt = historyFormatDate(prediction.generated_at || detail.created_at);
+
+    const driverList = (prediction.key_drivers || []).length
+        ? prediction.key_drivers.map((driver) => `<li>${historyEscapeHtml(driver)}</li>`).join("")
+        : "<li>Chưa có yếu tố nổi bật được lưu.</li>";
+
+    const alertList = (prediction.alerts || []).length
+        ? prediction.alerts.map((alert) => `<li><strong>${historyEscapeHtml(alert.title)}:</strong> ${historyEscapeHtml(alert.detail)}</li>`).join("")
+        : "<li>Không có cảnh báo lâm sàng được lưu cho bản ghi này.</li>";
+
+    const actionList = (prediction.recommended_actions || []).length
+        ? prediction.recommended_actions.map((action) => `<li><strong>${historyEscapeHtml(action.timeframe)} - ${historyEscapeHtml(action.action)}:</strong> ${historyEscapeHtml(action.reason)}</li>`).join("")
+        : "<li>Chưa có khuyến nghị chi tiết được lưu.</li>";
+
+    const missingFlagList = (prediction.missing_data_flags || []).length
+        ? prediction.missing_data_flags.map((flag) => `<li>${historyEscapeHtml(flag)}</li>`).join("")
+        : "";
+
+    const insightRows = (prediction.metric_insights || []).length
+        ? prediction.metric_insights.map((item) => `
+            <tr>
+                <td>${historyEscapeHtml(labels[item.metric] || item.label)}</td>
+                <td>${historyEscapeHtml(`${historyFormatMetricValue(item.metric, item.value)}${units[item.metric] || item.unit ? ` ${units[item.metric] || item.unit}` : ""}`)}</td>
+                <td>${historyEscapeHtml(item.status)}</td>
+                <td>${historyEscapeHtml(item.reference)}</td>
+            </tr>
+        `).join("")
+        : `
+            <tr>
+                <td colspan="4">Chưa có metric insight chi tiết trong bản ghi này.</td>
+            </tr>
+        `;
+
+    controls.detailContent.innerHTML = `
+        <article class="history-record">
+            <header class="history-record__topbar">
+                <div class="history-record__headline">
+                    <p class="history-record__eyebrow">Hồ sơ lần kiểm tra</p>
+                    <h3>${historyEscapeHtml(riskBand)} - ${historyEscapeHtml(riskScore)}/100</h3>
+                    <p>${historyEscapeHtml(summary)}</p>
+                </div>
+                <button type="button" class="history-detail-close" data-close-history-detail>Đóng</button>
+            </header>
+
+            <section class="history-record__section">
+                <h4>Tóm tắt hồ sơ</h4>
+                <dl class="history-record__summary">
+                    <div>
+                        <dt>Kết luận</dt>
+                        <dd><span class="status-chip ${UI.riskTone(prediction.probability || 0)}">${historyEscapeHtml(outcome)}</span></dd>
+                    </div>
+                    <div>
+                        <dt>Mức nguy cơ</dt>
+                        <dd>${historyEscapeHtml(`${riskBand} - ${riskScore}/100`)}</dd>
+                    </div>
+                    <div>
+                        <dt>Xác suất AI</dt>
+                        <dd>${historyEscapeHtml(probability)}</dd>
+                    </div>
+                    <div>
+                        <dt>Thời gian lưu</dt>
+                        <dd>${historyEscapeHtml(savedAt)}</dd>
+                    </div>
+                    <div>
+                        <dt>Thời điểm AI kết luận</dt>
+                        <dd>${historyEscapeHtml(generatedAt)}</dd>
+                    </div>
+                </dl>
+            </section>
+
+            <section class="history-record__section">
+                <h4>Thông tin lâm sàng đầu vào</h4>
+                <dl class="history-record__fields">
+                    ${featureOrder.map((feature) => `
+                        <div>
+                            <dt>${historyEscapeHtml(labels[feature] || feature)}</dt>
+                            <dd>${historyEscapeHtml(`${historyFormatMetricValue(feature, input[feature])}${units[feature] ? ` ${units[feature]}` : ""}`)}</dd>
+                        </div>
+                    `).join("")}
+                </dl>
+            </section>
+
+            <section class="history-record__section">
+                <h4>Nhận định lâm sàng</h4>
+                <div class="history-record__notes">
+                    <p><strong>Diễn giải:</strong> ${historyEscapeHtml(prediction.clinical_interpretation || "Chưa có dữ liệu.")}</p>
+                    <p><strong>Khuyến nghị ngắn:</strong> ${historyEscapeHtml(prediction.advice || "Chưa có dữ liệu.")}</p>
+                    <p><strong>Lưu ý:</strong> ${historyEscapeHtml(prediction.disclaimer || "Chưa có dữ liệu.")}</p>
+                </div>
+            </section>
+
+            <section class="history-record__section">
+                <h4>Yếu tố nổi bật</h4>
+                <ol class="history-record__list">
+                    ${driverList}
+                </ol>
+            </section>
+
+            ${missingFlagList ? `
+                <section class="history-record__section">
+                    <h4>Dữ liệu nội suy</h4>
+                    <ul class="history-record__list">
+                        ${missingFlagList}
+                    </ul>
+                </section>
+            ` : ""}
+
+            <section class="history-record__section">
+                <h4>Cảnh báo lâm sàng</h4>
+                <ul class="history-record__list">
+                    ${alertList}
+                </ul>
+            </section>
+
+            <section class="history-record__section">
+                <h4>Khuyến nghị tiếp theo</h4>
+                <ul class="history-record__list">
+                    ${actionList}
+                </ul>
+            </section>
+
+            <section class="history-record__section">
+                <h4>Bảng giải thích chỉ số</h4>
+                <div class="history-record__table-wrap">
+                    <table class="history-record__table">
+                        <thead>
+                            <tr>
+                                <th>Chỉ số</th>
+                                <th>Giá trị</th>
+                                <th>Trạng thái</th>
+                                <th>Tham chiếu</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${insightRows}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </article>
+    `;
+}
+
+selectHistoryRecord = async function(recordId) {
+    const numericId = Number(recordId);
+    if (!Number.isFinite(numericId)) return;
+
+    historyV2State.selectedId = numericId;
+    renderHistory(historyV2State.rows);
+
+    const cachedDetail = historyV2State.detailCache.get(numericId);
+    if (cachedDetail) {
+        renderHistoryV2Detail(cachedDetail);
+        return;
+    }
+
+    const requestId = ++historyV2State.activeRequestId;
+    renderHistoryV2Placeholder("Đang tải chi tiết", "Đang lấy chi tiết lâm sàng cho bản ghi được chọn...");
+
+    try {
+        const detail = await fetchJson(`history/${numericId}`);
+        if (requestId !== historyV2State.activeRequestId) return;
+        historyV2State.detailCache.set(numericId, detail);
+        if (historyV2State.selectedId === numericId) {
+            renderHistoryV2Detail(detail);
+        }
+    } catch (error) {
+        if (requestId !== historyV2State.activeRequestId) return;
+        renderHistoryV2Placeholder("Không tải được chi tiết", error.message);
+    }
+};
+
+renderHistory = function(rows = []) {
+    const controls = getHistoryV2Controls();
+    if (!controls) return;
+
+    historyV2State.rows = Array.isArray(rows) ? rows : [];
+    historyV2State.filteredRows = getFilteredHistoryRows();
+
+    if (controls.countLabel) {
+        controls.countLabel.textContent = `Đang hiển thị ${historyV2State.filteredRows.length}/${historyV2State.rows.length} bản ghi`;
+    }
+
+    if (!historyV2State.filteredRows.length) {
+        const emptyMessage = historyV2State.rows.length
+            ? "Không có bản ghi phù hợp với bộ lọc hiện tại."
+            : "Chưa có dữ liệu.";
+        historyBody.innerHTML = `<tr><td colspan="6">${emptyMessage}</td></tr>`;
+        if (!historyV2State.selectedId || !historyV2State.rows.length) {
+            renderHistoryV2Placeholder("Chọn một bản ghi", "Chi tiết sẽ được tải khi bạn chọn một dòng trong lịch sử ở bên trên.");
+        }
+        return;
+    }
+
+    const visibleIds = new Set(historyV2State.filteredRows.map((item) => item.id));
+    if (historyV2State.selectedId && !visibleIds.has(historyV2State.selectedId)) {
+        historyV2State.selectedId = null;
+        renderHistoryV2Placeholder("Bản ghi đã bị ẩn bởi bộ lọc", "Hãy chọn một bản ghi đang hiển thị để xem chi tiết.");
+    }
+
+    historyBody.innerHTML = historyV2State.filteredRows
+        .map((item) => `
+            <tr class="${historyV2State.selectedId === item.id ? "is-active" : ""}" data-history-id="${item.id}" tabindex="0" role="button" aria-label="Mở chi tiết bản ghi ${item.id}" aria-pressed="${historyV2State.selectedId === item.id ? "true" : "false"}">
+                <td>${historyEscapeHtml(historyFormatDate(item.created_at))}</td>
+                <td><span class="status-chip ${UI.riskTone(item.probability)}">${historyEscapeHtml(item.has_diabetes)}</span></td>
+                <td>${historyEscapeHtml(item.risk_band)} (${historyEscapeHtml(UI.formatPercent(item.probability))})</td>
+                <td>${historyEscapeHtml(historyFormatMetricValue("Glucose", item.glucose))}</td>
+                <td>${historyEscapeHtml(historyFormatMetricValue("BMI", item.bmi))}</td>
+                <td>${historyEscapeHtml(historyFormatMetricValue("Age", item.age))}</td>
+            </tr>
+        `).join("");
+};
+
+loadHistory = async function(selectedId = null) {
+    const history = await fetchJson("history");
+    renderHistory(history);
+
+    if (!history.length) {
+        renderHistoryV2Placeholder("Chưa có lịch sử", "Hãy thực hiện một lần dự đoán để lưu bản ghi đầu tiên.");
+        return;
+    }
+
+    if (selectedId != null) {
+        await selectHistoryRecord(selectedId);
+        return;
+    }
+
+    if (historyV2State.selectedId && historyV2State.detailCache.has(historyV2State.selectedId)) {
+        renderHistoryV2Detail(historyV2State.detailCache.get(historyV2State.selectedId));
+        return;
+    }
+
+    renderHistoryV2Placeholder("Chọn một bản ghi", "Chi tiết sẽ được tải khi bạn chọn một dòng trong lịch sử ở bên trên.");
+};
+
+ensureHistoryV2Layout();
