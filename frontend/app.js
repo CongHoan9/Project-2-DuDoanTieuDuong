@@ -1331,6 +1331,7 @@ const historyV2FallbackUnits = {
 function historyNormalizeText(value) {
     return String(value ?? "")
         .toLowerCase()
+        .replace(/đ/g, "d")
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "");
 }
