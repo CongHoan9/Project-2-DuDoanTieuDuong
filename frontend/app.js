@@ -13,14 +13,14 @@ const featureOrder = [
 ];
 
 const fallbackLabels = {
-    Pregnancies: "Số lần mang thai",
-    Glucose: "Đường huyết",
-    BloodPressure: "Huyết áp tâm trương",
-    SkinThickness: "Skin Thickness",
+    Pregnancies: "S\u1ed1 l\u1ea7n mang thai",
+    Glucose: "\u0110\u01b0\u1eddng huy\u1ebft",
+    BloodPressure: "Huy\u1ebft \u00e1p t\u00e2m tr\u01b0\u01a1ng",
+    SkinThickness: "\u0110\u1ed9 d\u00e0y l\u1edbp m\u1ee1 d\u01b0\u1edbi da",
     Insulin: "Insulin",
     BMI: "BMI",
-    DiabetesPedigreeFunction: "Tiền sử gia đình",
-    Age: "Tuổi"
+    DiabetesPedigreeFunction: "Y\u1ebfu t\u1ed1 gia \u0111\u00ecnh",
+    Age: "Tu\u1ed5i"
 };
 
 const form = document.getElementById("predictionForm");
@@ -1310,10 +1310,10 @@ const historyV2FallbackLabels = {
     Pregnancies: "S\u1ed1 l\u1ea7n mang thai",
     Glucose: "\u0110\u01b0\u1eddng huy\u1ebft",
     BloodPressure: "Huy\u1ebft \u00e1p t\u00e2m tr\u01b0\u01a1ng",
-    SkinThickness: "\u0110\u1ed9 d\u00e0y da",
+    SkinThickness: "\u0110\u1ed9 d\u00e0y l\u1edbp m\u1ee1 d\u01b0\u1edbi da",
     Insulin: "Insulin",
     BMI: "BMI",
-    DiabetesPedigreeFunction: "Ti\u1ec1n s\u1eed gia \u0111\u00ecnh",
+    DiabetesPedigreeFunction: "Y\u1ebfu t\u1ed1 gia \u0111\u00ecnh",
     Age: "Tu\u1ed5i"
 };
 

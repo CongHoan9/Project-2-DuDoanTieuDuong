@@ -30,10 +30,10 @@ FEATURE_LABELS = {
     "Pregnancies": "Số lần mang thai",
     "Glucose": "Đường huyết",
     "BloodPressure": "Huyết áp tâm trương",
-    "SkinThickness": "Bề dày nếp gấp da",
+    "SkinThickness": "Độ dày lớp mỡ dưới da",
     "Insulin": "Insulin",
     "BMI": "BMI",
-    "DiabetesPedigreeFunction": "Tiền sử gia đình",
+    "DiabetesPedigreeFunction": "Yếu tố gia đình",
     "Age": "Tuổi",
 }
 # đơn vị hiển thị cho từng feature trong phần giải thích.
