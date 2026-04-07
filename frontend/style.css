@@ -1681,7 +1681,6 @@ button:disabled {
 
     .tab-nav {
         position: static;
-        border-radius: 22px;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         padding: 6px;
         gap: 6px;
