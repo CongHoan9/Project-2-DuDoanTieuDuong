@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -8,20 +9,33 @@ from app.api.routes import router
 from app.config import get_settings
 from app.database import Base, engine
 from app.models import check as _check_models
+from app.services.history_store import get_history_store
+from app.services.prediction import _load_model_bundle
 
 
 settings = get_settings()
 BACKEND_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BACKEND_DIR.parent / "frontend"
-APP_VERSION = "2.2.0"
+APP_VERSION = "2.3.0"
 
-# Tạo bảng SQLite ngay khi app khởi động để không cần bước setup riêng.
-Base.metadata.create_all(bind=engine)
+
+def initialize_application() -> None:
+    Base.metadata.create_all(bind=engine)
+    get_history_store()
+    _load_model_bundle()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    initialize_application()
+    yield
+
 
 app = FastAPI(
     title="Diabetes Clinical Risk API",
-    description="FastAPI service for the diabetes dashboard, prediction API, and local SQLite history.",
+    description="FastAPI service for the diabetes dashboard, prediction API, and Supabase-ready history storage.",
     version=APP_VERSION,
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -36,7 +50,6 @@ app.include_router(router)
 
 
 if FRONTEND_DIR.exists():
-    # Serve luôn frontend để chỉ cần chạy 1 FastAPI app duy nhất.
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 else:
     @app.get("/")

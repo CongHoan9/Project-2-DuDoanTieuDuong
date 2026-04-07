@@ -1,8 +1,13 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
-from app.schemas.history import CheckHistoryResponse
+from app.config import get_settings
+from app.schemas.history import (
+    CheckHistoryDetailResponse,
+    CheckHistorySummaryResponse,
+    build_history_detail_response,
+)
 from app.schemas.prediction import PredictionInput, PredictionOutput
-from app.services.history import create_check, get_recent_checks
+from app.services.history import create_check, get_check_detail, get_recent_checks
 from app.services.history_store import get_history_store
 from app.services.prediction import (
     get_clinical_content,
@@ -13,50 +18,52 @@ from app.services.prediction import (
 
 
 router = APIRouter(prefix="/api", tags=["diabetes"])
-APP_VERSION = "2.2.0"
+APP_VERSION = "2.3.0"
 
 
-# Kiểm tra trạng thái API và backend lưu lịch sử đang dùng.
 @router.get("/health")
 def health_check():
-    # Dùng để kiểm tra app còn chạy và backend lưu lịch sử hiện tại là gì.
     store = get_history_store()
+    settings = get_settings()
     return {
         "status": "ok",
         "version": APP_VERSION,
         "history_backend": store.name,
+        "database_backend": settings.database_backend,
+        "model_load_policy": "preloaded-on-startup and reused from in-memory cache",
     }
 
 
-# Nhận input dự đoán, chạy model và lưu kết quả vào lịch sử.
 @router.post("/predict", response_model=PredictionOutput)
 async def predict(data: PredictionInput):
-    # Chạy suy luận từ input người dùng rồi lưu ngay kết quả vào lịch sử SQLite.
     result = predict_diabetes(data)
     create_check(data.model_dump(), result)
     return result
 
 
-# Trả về các bản ghi lịch sử gần đây cho tab History.
-@router.get("/history", response_model=list[CheckHistoryResponse])
+@router.get("/history", response_model=list[CheckHistorySummaryResponse])
 def get_history(limit: int = 10):
-    # Trả về các lần kiểm tra gần nhất để frontend hiển thị trong tab History.
     return get_recent_checks(limit)
 
 
-# Trả về bộ số liệu tham chiếu phục vụ radar chart và library.
+@router.get("/history/{check_id}", response_model=CheckHistoryDetailResponse)
+def get_history_detail_by_id(check_id: int):
+    record = get_check_detail(check_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="History record not found")
+    return build_history_detail_response(record)
+
+
 @router.get("/reference-stats")
 def reference_stats():
     return get_reference_stats()
 
 
-# Trả về metadata của model đang phục vụ suy luận.
 @router.get("/model-info")
 def model_info():
     return get_model_profile()
 
 
-# Trả về nội dung lâm sàng để frontend dựng các phần giải thích.
 @router.get("/clinical-content")
 def clinical_content():
     return get_clinical_content()

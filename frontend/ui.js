@@ -111,7 +111,7 @@ window.DiabetesUI = (() => {
 
     // Đổi xác suất sang chuỗi phần trăm để hiển thị.
     function formatPercent(value) {
-        return `${(value * 100).toFixed(1)}%`;
+        return `${(value * 100).toFixed(1)}%`; // hàm toFixed(1) để làm tròn đến 1 chữ số thập phân, sau đó thêm dấu % vào cuối chuỗi.
     }
 
     // Quy đổi mức độ sang class màu chung của giao diện.

@@ -8,3 +8,7 @@ def create_check(input_data: dict, result: PredictionOutput):
 
 def get_recent_checks(limit: int = 10):
     return get_history_store().get_recent_checks(limit)
+
+
+def get_check_detail(check_id: int):
+    return get_history_store().get_check(check_id)

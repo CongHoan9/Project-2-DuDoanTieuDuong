@@ -1,12 +1,10 @@
-# backend/create_tables.py
-# Import các model để Base biết có bảng nào cần tạo
 from app.database import Base, engine
-from app.models import check  # <-- quan trọng: import để SQLAlchemy nhận diện model CheckHistory
+from app.models import check as _check_models
+from app.config import get_settings
 
-print("Đang tạo bảng trong database...")
 
-# Tạo tất cả bảng định nghĩa trong models
+settings = get_settings()
+
+print(f"Creating tables in {settings.database_backend}...")
 Base.metadata.create_all(bind=engine)
-
-print("Hoàn tất! Bảng 'check_history' đã được tạo (hoặc đã tồn tại).")
-print("File database: diabetes_checks.db nằm trong thư mục backend/")
+print("Done. Table 'prediction_history' is ready.")

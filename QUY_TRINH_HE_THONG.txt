@@ -609,7 +609,7 @@ A. Sequence khi người dùng bấm nút Predict
 - Việc xảy ra:
   - FastAPI nhận request
   - tự validate request body theo schema PredictionInput
-  - nếu sai field hoặc sai kiểu thì trả lỗi 422
+  - nếu sai field hoặc sai kiểu thì trả lỗi 422 (dữ liệu gửi lên sai format)
 
 5. Backend gọi hàm suy luận chính
 - File:
@@ -618,7 +618,7 @@ A. Sequence khi người dùng bấm nút Predict
   - predict(...)
 - Gọi sang:
   - backend/app/services/prediction.py
-  - predict_diabetes(data)
+  - A(data)
 - Việc xảy ra:
   - route chuyển phần tính toán sang service layer
 
@@ -632,7 +632,7 @@ A. Sequence khi người dùng bấm nút Predict
   - chuyển input thành vector số
   - xử lý các cột thuộc nhóm ZERO_AS_MISSING nếu cần
 
-7. Service nạp các artifact phục vụ model
+7. Service nạp các thành phần phục vụ model
 - File:
   - backend/app/services/prediction.py
 - Các hàm cache / load liên quan:
@@ -892,3 +892,6 @@ C. Sequence khi backend khởi động
   - GET /api/reference-stats
   - GET /api/model-info
   - GET /api/clinical-content
+
+
+mỗi 1 bản ghi = 1 tab riêng

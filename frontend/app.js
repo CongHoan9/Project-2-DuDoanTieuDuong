@@ -72,7 +72,7 @@ function labelsMap() {
 // Ghép endpoint con thành URL API đầy đủ.
 function buildApiUrl(endpoint) {
     const safeEndpoint = String(endpoint || "").replace(/^\/+/, "");
-    return `${apiBase}/${safeEndpoint}`;
+    return `${apiBase}/${safeEndpoint}`; // /api + / + endpoint
 }
 
 // Lấy toàn bộ dữ liệu hiện tại từ form nhập liệu.
@@ -163,9 +163,8 @@ function renderResult(prediction) {
         <h3>${prediction.has_diabetes}</h3>
         <p>${prediction.summary}</p>
     `;
-
     result.innerHTML = `
-                    <span class="status-chip ${UI.riskTone(prediction.probability)}">${prediction.has_diabetes}</span>
+        <span class="status-chip ${UI.riskTone(prediction.probability)}">${prediction.has_diabetes}</span>
         <h2>Điểm nguy cơ ${prediction.risk_score}/100</h2>
         <p>${prediction.summary}</p>
         <p><strong>Diễn giải:</strong> ${prediction.clinical_interpretation}</p>
@@ -802,26 +801,27 @@ if (carePathway) {
 }
 
 form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const input = getInputPayload();
+    event.preventDefault();          // Ngăn form reload trang.
+    const input = getInputPayload(); // lấy các giá trị hiện tại từ form để gửi lên API dự đoán.
 
     // Khi submit: gọi API dự đoán rồi cập nhật toàn bộ dashboard kết quả.
     submitButton.disabled = true;
     submitButton.textContent = "Đang phân tích...";
-
+    // Gọi API dự đoán với input hiện tại.
     try {
         const response = await fetch(buildApiUrl("predict"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(input)
-        });
+        }); // gửi lên server với kiểu POST và payload là JSON chứa input người dùng.
 
         if (!response.ok) {
             throw new Error("API dự đoán chưa phản hồi thành công. Hãy kiểm tra backend.");
-        }
+        } // Nếu phản hồi không thành công, ném lỗi để hiển thị thông báo.
 
-        const prediction = await response.json();
-        UI.updateRiskMeter(prediction, {
+        const prediction = await response.json(); // Đọc kết quả dự đoán trả về từ server, kỳ vọng là một object chứa các trường như has_diabetes, risk_score, summary, alerts, recommended_actions, v.v.
+        //gọi fun updateRiskMeter bên ui.js
+        UI.updateRiskMeter(prediction, { 
             riskMeter,
             riskPercent,
             riskBand,
@@ -829,14 +829,18 @@ form.addEventListener("submit", async (event) => {
             modelProbability,
             clinicalProbability
         });
+        // Cập nhật toàn bộ giao diện với kết quả dự đoán mới:
         renderResult(prediction);
         renderAlerts(prediction.alerts || []);
         renderActions(prediction.recommended_actions || []);
         renderMetricInsights(prediction.metric_insights || []);
+        // nếu có dữ liệu tham chiếu, vẽ radar chart để so sánh input hiện tại với median tham chiếu.
         if (Object.keys(referenceStats).length) {
             renderRadarChart(input);
         }
+        // Lưu trạng thái dự đoán và input hiện tại vào session storage để nếu reload trang vẫn giữ được kết quả.
         savePredictionState(prediction, input);
+        // gọi fun activateTab bên ui.js.
         UI.activateTab("predict", tabButtons, tabPanels, [
             radarChart,
             libraryBandsChart,
@@ -860,4 +864,434 @@ bootstrap().finally(() => {
         librarySpreadChart
     ]);
     UI.observeCountUps(document, countObserver);
+});
+
+const historyDetailState = {
+    rows: [],
+    selectedId: null
+};
+
+const fallbackUnits = {
+    Pregnancies: "láº§n",
+    Glucose: "mg/dL",
+    BloodPressure: "mmHg",
+    SkinThickness: "mm",
+    Insulin: "mu U/mL",
+    BMI: "kg/mÂ²",
+    DiabetesPedigreeFunction: "Ä‘iá»ƒm",
+    Age: "tuá»•i"
+};
+
+function unitsMap() {
+    return clinicalContent.feature_units || fallbackUnits;
+}
+
+function escapeHtml(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function formatHistoryDate(value) {
+    return new Date(value).toLocaleString("vi-VN");
+}
+
+function formatFeatureValue(feature, value) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return "-";
+    if (feature === "Pregnancies" || feature === "Age") {
+        return `${Math.round(numericValue)}`;
+    }
+    if (feature === "DiabetesPedigreeFunction") {
+        return numericValue.toFixed(3);
+    }
+    return numericValue.toFixed(1);
+}
+
+function historyCardHtml(title, body) {
+    return `
+        <article class="stack-card">
+            <h3>${escapeHtml(title)}</h3>
+            <p>${body}</p>
+        </article>
+    `;
+}
+
+function ensureHistoryEnhancement() {
+    const historyGrid = document.querySelector('[data-tab-panel="history"] .dashboard-grid--history');
+    const historyPanel = document.querySelector(".history-panel");
+    const historyTableHeadRow = document.querySelector("#historyTable thead tr");
+
+    if (!historyGrid || !historyPanel || !historyTableHeadRow) {
+        return null;
+    }
+
+    if (!document.getElementById("historyEnhancementStyles")) {
+        const style = document.createElement("style");
+        style.id = "historyEnhancementStyles";
+        style.textContent = `
+            .history-panel.history-panel--enhanced {
+                grid-column: 1 / span 7;
+            }
+
+            .history-detail-panel {
+                grid-column: 8 / span 5;
+                align-self: start;
+            }
+
+            .history-detail-shell,
+            .history-detail-section,
+            .history-inline-stats,
+            .history-kv-grid,
+            .history-driver-list,
+            .history-flag-list {
+                display: grid;
+                gap: 14px;
+            }
+
+            .history-detail-shell {
+                margin-top: 4px;
+            }
+
+            .history-detail-hero,
+            .history-kv,
+            .history-driver-list,
+            .history-flag-list {
+                padding: 20px;
+                border: 1px solid var(--line);
+                border-radius: var(--radius-md);
+                background: var(--surface-strong);
+            }
+
+            .history-detail-hero h3,
+            .history-section-title,
+            .history-kv strong {
+                margin: 0;
+                font-family: "Sora", sans-serif;
+                letter-spacing: -0.03em;
+            }
+
+            .history-detail-hero p,
+            .history-kv span,
+            .history-driver-list li,
+            .history-flag-list li {
+                margin: 0;
+                color: var(--muted);
+                line-height: 1.6;
+            }
+
+            .history-inline-stats,
+            .history-kv-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+
+            .history-kv {
+                gap: 8px;
+                align-content: start;
+            }
+
+            .history-driver-list,
+            .history-flag-list {
+                margin: 0;
+                padding-left: 36px;
+            }
+
+            .history-detail-button {
+                min-width: 0;
+                width: auto;
+                padding: 10px 14px;
+                border-radius: 999px;
+                box-shadow: none;
+            }
+
+            #historyTable tbody tr[data-history-id] {
+                cursor: pointer;
+                transition: background 180ms ease;
+            }
+
+            #historyTable tbody tr[data-history-id]:hover {
+                background: rgba(13, 107, 89, 0.06);
+            }
+
+            #historyTable tbody tr.is-active {
+                background: rgba(13, 107, 89, 0.12);
+            }
+
+            @media (max-width: 1240px) {
+                .history-panel.history-panel--enhanced,
+                .history-detail-panel {
+                    grid-column: auto;
+                }
+            }
+
+            @media (max-width: 720px) {
+                .history-inline-stats,
+                .history-kv-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    historyPanel.classList.add("history-panel--enhanced");
+
+    if (historyTableHeadRow.children.length < 7) {
+        const actionHead = document.createElement("th");
+        actionHead.textContent = "Chi tiáº¿t";
+        historyTableHeadRow.appendChild(actionHead);
+    }
+
+    const emptyCell = historyBody.querySelector("td[colspan='6']");
+    if (emptyCell) {
+        emptyCell.colSpan = 7;
+    }
+
+    let detailPanel = document.getElementById("historyDetailContent");
+    if (!detailPanel) {
+        const aside = document.createElement("aside");
+        aside.className = "panel history-detail-panel";
+        aside.innerHTML = `
+            <div class="section-heading">Chi tiáº¿t láº§n kiá»ƒm tra</div>
+            <div id="historyDetailContent" class="history-detail-shell">
+                <article class="stack-card">
+                    <h3>Chá»n má»™t dÃ²ng trong báº£ng</h3>
+                    <p>Panel nÃ y sáº½ hiá»ƒn thá»‹ Ä‘áº§y Ä‘á»§ input lÃ¢m sÃ ng, diá»…n giáº£i AI, cáº£nh bÃ¡o vÃ  khuyáº¿n nghá»‹.</p>
+                </article>
+            </div>
+        `;
+        historyGrid.appendChild(aside);
+        detailPanel = aside.querySelector("#historyDetailContent");
+    }
+
+    return detailPanel;
+}
+
+function renderHistoryDetailPlaceholder(title, message) {
+    const detailPanel = ensureHistoryEnhancement();
+    if (!detailPanel) return;
+
+    detailPanel.innerHTML = `
+        <article class="stack-card">
+            <h3>${escapeHtml(title)}</h3>
+            <p>${escapeHtml(message)}</p>
+        </article>
+    `;
+}
+
+function renderHistoryDetail(detail) {
+    const detailPanel = ensureHistoryEnhancement();
+    if (!detailPanel) return;
+
+    const input = detail.input_data || {};
+    const prediction = detail.prediction || {};
+    const labels = labelsMap();
+    const units = unitsMap();
+    const alertsHtml = (prediction.alerts || []).length
+        ? (prediction.alerts || [])
+            .map(
+                (alert) => `
+                    <article class="stack-card">
+                        <span class="status-chip ${UI.toneClass(alert.level)}">${escapeHtml(alert.level)}</span>
+                        <h3>${escapeHtml(alert.title)}</h3>
+                        <p>${escapeHtml(alert.detail)}</p>
+                    </article>
+                `
+            )
+            .join("")
+        : historyCardHtml("Cáº£nh bÃ¡o", "KhÃ´ng cÃ³ cáº£nh bÃ¡o lÃ¢m sÃ ng Ä‘Æ°á»£c lÆ°u cho láº§n nÃ y.");
+
+    const actionsHtml = (prediction.recommended_actions || []).length
+        ? (prediction.recommended_actions || [])
+            .map(
+                (action) => `
+                    <article class="stack-card">
+                        <span class="status-chip tone-neutral">${escapeHtml(action.timeframe)}</span>
+                        <h3>${escapeHtml(action.action)}</h3>
+                        <p>${escapeHtml(action.reason)}</p>
+                    </article>
+                `
+            )
+            .join("")
+        : historyCardHtml("Khuyáº¿n nghá»‹", "ChÆ°a cÃ³ khuyáº¿n nghá»‹ chi tiáº¿t Ä‘Æ°á»£c lÆ°u.");
+
+    const insightsHtml = (prediction.metric_insights || []).length
+        ? (prediction.metric_insights || [])
+            .map(
+                (item) => `
+                    <article class="metric-card">
+                        <span class="status-chip ${UI.toneClass(item.severity)}">${escapeHtml(item.status)}</span>
+                        <h3>${escapeHtml(item.label)}: ${escapeHtml(formatFeatureValue(item.metric, item.value))} ${escapeHtml(item.unit)}</h3>
+                        <p><strong>Tham chiáº¿u:</strong> ${escapeHtml(item.reference)}</p>
+                        <p><strong>Ã nghÄ©a:</strong> ${escapeHtml(item.clinical_note)}</p>
+                        <p><strong>TÃ¡c Ä‘á»™ng:</strong> ${escapeHtml(item.effect)}</p>
+                    </article>
+                `
+            )
+            .join("")
+        : historyCardHtml("Giáº£i thÃ­ch chá»‰ sá»‘", "ChÆ°a cÃ³ metric insight chi tiáº¿t trong báº£n ghi nÃ y.");
+
+    const driversHtml = (prediction.key_drivers || []).length
+        ? `
+            <section class="history-detail-section">
+                <h3 class="history-section-title">Yáº¿u tá»‘ ná»•i báº­t</h3>
+                <ol class="history-driver-list">
+                    ${(prediction.key_drivers || []).map((driver) => `<li>${escapeHtml(driver)}</li>`).join("")}
+                </ol>
+            </section>
+        `
+        : "";
+
+    const missingFlagsHtml = (prediction.missing_data_flags || []).length
+        ? `
+            <section class="history-detail-section">
+                <h3 class="history-section-title">Dá»¯ liá»‡u Ä‘Æ°á»£c ná»™i suy</h3>
+                <ul class="history-flag-list">
+                    ${(prediction.missing_data_flags || []).map((flag) => `<li>${escapeHtml(flag)}</li>`).join("")}
+                </ul>
+            </section>
+        `
+        : "";
+
+    detailPanel.innerHTML = `
+        <article class="history-detail-hero">
+            <span class="status-chip ${UI.riskTone(prediction.probability || 0)}">${escapeHtml(prediction.has_diabetes || "KhÃ´ng rÃµ")}</span>
+            <h3>${escapeHtml(prediction.risk_band || "-")} - ${escapeHtml(prediction.risk_score ?? "--")}/100</h3>
+            <p>${escapeHtml(prediction.summary || "ChÆ°a cÃ³ tÃ³m táº¯t lÆ°u trong lá»‹ch sá»­.")}</p>
+            <div class="history-inline-stats">
+                <div class="history-kv">
+                    <span class="meta-label">Thá»i gian lÆ°u</span>
+                    <strong>${escapeHtml(formatHistoryDate(detail.created_at))}</strong>
+                </div>
+                <div class="history-kv">
+                    <span class="meta-label">XÃ¡c suáº¥t AI</span>
+                    <strong>${escapeHtml(UI.formatPercent(prediction.probability || 0))}</strong>
+                </div>
+                <div class="history-kv">
+                    <span class="meta-label">Generated At</span>
+                    <strong>${escapeHtml(formatHistoryDate(prediction.generated_at || detail.created_at))}</strong>
+                </div>
+            </div>
+        </article>
+
+        <section class="history-detail-section">
+            <h3 class="history-section-title">Input lÃ¢m sÃ ng</h3>
+            <div class="history-kv-grid">
+                ${featureOrder
+                    .map(
+                        (feature) => `
+                            <article class="history-kv">
+                                <span class="meta-label">${escapeHtml(labels[feature] || feature)}</span>
+                                <strong>${escapeHtml(formatFeatureValue(feature, input[feature]))}</strong>
+                                <span>${escapeHtml(units[feature] || "")}</span>
+                            </article>
+                        `
+                    )
+                    .join("")}
+            </div>
+        </section>
+
+        <section class="history-detail-section">
+            <h3 class="history-section-title">Diá»…n giáº£i tÃ³m táº¯t</h3>
+            <div class="stack-list compact">
+                ${historyCardHtml("Káº¿t luáº­n", escapeHtml(prediction.summary || ""))}
+                ${historyCardHtml("Diá»…n giáº£i lÃ¢m sÃ ng", escapeHtml(prediction.clinical_interpretation || ""))}
+                ${historyCardHtml("Khuyáº¿n nghá»‹ ngáº¯n", escapeHtml(prediction.advice || ""))}
+                ${historyCardHtml("LÆ°u Ã½", escapeHtml(prediction.disclaimer || ""))}
+            </div>
+        </section>
+
+        ${driversHtml}
+        ${missingFlagsHtml}
+
+        <section class="history-detail-section">
+            <h3 class="history-section-title">Cáº£nh bÃ¡o lÃ¢m sÃ ng</h3>
+            <div class="stack-list">${alertsHtml}</div>
+        </section>
+
+        <section class="history-detail-section">
+            <h3 class="history-section-title">Khuyáº¿n nghá»‹ tiáº¿p theo</h3>
+            <div class="stack-list">${actionsHtml}</div>
+        </section>
+
+        <section class="history-detail-section">
+            <h3 class="history-section-title">Giáº£i thÃ­ch theo tá»«ng chá»‰ sá»‘</h3>
+            <div class="metric-grid">${insightsHtml}</div>
+        </section>
+    `;
+}
+
+async function selectHistoryRecord(recordId) {
+    if (!Number.isFinite(Number(recordId))) return;
+
+    historyDetailState.selectedId = Number(recordId);
+    renderHistory(historyDetailState.rows);
+    renderHistoryDetailPlaceholder("Äang táº£i chi tiáº¿t", "Äang láº¥y pháº§n diá»…n giáº£i lÃ¢m sÃ ng cho báº£n ghi nÃ y...");
+
+    try {
+        const detail = await fetchJson(`history/${recordId}`);
+        renderHistoryDetail(detail);
+    } catch (error) {
+        renderHistoryDetailPlaceholder("KhÃ´ng táº£i Ä‘Æ°á»£c chi tiáº¿t", error.message);
+    }
+}
+
+renderHistory = function(rows = []) {
+    ensureHistoryEnhancement();
+    historyDetailState.rows = rows;
+
+    if (!rows.length) {
+        historyBody.innerHTML = '<tr><td colspan="7">ChÆ°a cÃ³ dá»¯ liá»‡u.</td></tr>';
+        renderHistoryDetailPlaceholder("ChÆ°a cÃ³ lá»‹ch sá»­", "HÃ£y thá»±c hiá»‡n má»™t láº§n dá»± Ä‘oÃ¡n Ä‘á»ƒ há»‡ thá»‘ng lÆ°u báº£n ghi Ä‘áº§u tiÃªn.");
+        return;
+    }
+
+    historyBody.innerHTML = rows
+        .map(
+            (item) => `
+                <tr class="${historyDetailState.selectedId === item.id ? "is-active" : ""}" data-history-id="${item.id}" tabindex="0">
+                    <td>${escapeHtml(formatHistoryDate(item.created_at))}</td>
+                    <td><span class="status-chip ${UI.riskTone(item.probability)}">${escapeHtml(item.has_diabetes)}</span></td>
+                    <td>${escapeHtml(item.risk_band)} (${escapeHtml(UI.formatPercent(item.probability))})</td>
+                    <td>${escapeHtml(formatFeatureValue("Glucose", item.glucose))}</td>
+                    <td>${escapeHtml(formatFeatureValue("BMI", item.bmi))}</td>
+                    <td>${escapeHtml(formatFeatureValue("Age", item.age))}</td>
+                    <td><button type="button" class="history-detail-button" data-history-id="${item.id}">Xem</button></td>
+                </tr>
+            `
+        )
+        .join("");
+};
+
+loadHistory = async function(selectedId = null) {
+    const history = await fetchJson("history?limit=10");
+    renderHistory(history);
+
+    if (!history.length) {
+        return;
+    }
+
+    const requestedId = selectedId || historyDetailState.selectedId;
+    const preferredRow = history.find((item) => item.id === requestedId) || history[0];
+    const preferredId = preferredRow.id;
+    await selectHistoryRecord(preferredId);
+};
+
+historyBody.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-history-id]");
+    if (!trigger) return;
+    selectHistoryRecord(Number(trigger.dataset.historyId));
+});
+
+historyBody.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+
+    const trigger = event.target.closest("[data-history-id]");
+    if (!trigger) return;
+
+    event.preventDefault();
+    selectHistoryRecord(Number(trigger.dataset.historyId));
 });

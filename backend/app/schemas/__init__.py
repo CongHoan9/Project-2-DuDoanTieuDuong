@@ -1,2 +1,2 @@
+from .history import CheckHistoryDetailResponse, CheckHistorySummaryResponse
 from .prediction import PredictionInput, PredictionOutput
-from .history import CheckHistoryResponse

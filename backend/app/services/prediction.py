@@ -12,7 +12,7 @@ from app.schemas.prediction import ClinicalAlert, MetricInsight, PredictionInput
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 ASSETS_DIR = BASE_DIR / "assets"
 REFERENCE_STATS_FILE = ASSETS_DIR / "reference_stats.json"
-
+# thứ tự các feature như khi đưa vào model để đảm bảo đúng khi xử lý.
 FEATURE_ORDER = [
     "Pregnancies",
     "Glucose",
@@ -25,7 +25,7 @@ FEATURE_ORDER = [
 ]
 
 ZERO_AS_MISSING = {"Glucose", "BloodPressure", "SkinThickness", "Insulin", "BMI"}
-
+# nhãn hiển thị cho từng feature trong phần giải thích.
 FEATURE_LABELS = {
     "Pregnancies": "Số lần mang thai",
     "Glucose": "Đường huyết",
@@ -36,7 +36,7 @@ FEATURE_LABELS = {
     "DiabetesPedigreeFunction": "Tiền sử gia đình",
     "Age": "Tuổi",
 }
-
+# đơn vị hiển thị cho từng feature trong phần giải thích.
 FEATURE_UNITS = {
     "Pregnancies": "lần",
     "Glucose": "mg/dL",
@@ -47,7 +47,7 @@ FEATURE_UNITS = {
     "DiabetesPedigreeFunction": "điểm",
     "Age": "tuổi",
 }
-
+# giá trị mặc định cho các feature khi thiếu dữ liệu.
 REFERENCE_FALLBACK = {
     "Pregnancies": 3.0,
     "Glucose": 117.0,
@@ -58,7 +58,7 @@ REFERENCE_FALLBACK = {
     "DiabetesPedigreeFunction": 0.3825,
     "Age": 29.0,
 }
-
+# thông tin đánh giá model sau khi train.
 MODEL_BENCHMARK = {
     "dataset": "Pima Indians Diabetes Database",
     "model_type": "Tuned RandomForest + clinical calibration layer",
@@ -73,7 +73,7 @@ MODEL_BENCHMARK = {
     },
     "source": "notebooks/03_Final_Model_Training_and_Save.ipynb",
 }
-
+# So sánh giữa các chỉ số đầu vào của người dùng với các ngưỡng tham chiếu y khoa chuẩn.
 REFERENCE_RANGES = [
     {
         "metric": "Glucose",
@@ -121,7 +121,7 @@ REFERENCE_RANGES = [
         "note": "Điểm càng cao càng cho thấy nguy cơ di truyền và môi trường gia đình đáng lưu ý.",
     },
 ]
-
+# định nghĩa các ngưỡng điểm rủi ro để phân loại mức độ nguy cơ và tư vấn lâm sàng tương ứng.
 CARE_PATHWAY = [
     {
         "title": "Xác nhận cận lâm sàng",
@@ -139,7 +139,7 @@ CARE_PATHWAY = [
         "detail": "Theo dõi cân nặng, khẩu phần tinh bột, hoạt động thể lực và huyết áp tại nhà.",
     },
 ]
-
+# nội dung giáo dục sức khỏe chung cho người dùng có nguy cơ từ trung bình trở lên.
 EDUCATION_MODULES = [
     {
         "title": "Dinh dưỡng chuyển hóa",
@@ -154,7 +154,7 @@ EDUCATION_MODULES = [
         "detail": "Nếu có tiền sử gia đình hoặc trên 45 tuổi, nên kiểm tra đường huyết và HbA1c định kỳ ngay cả khi triệu chứng chưa rõ.",
     },
 ]
-
+# quy tắc đánh giá từng metric dựa trên giá trị đầu vào
 METRIC_RULES = {
     "Pregnancies": {
         "missing_points": 0,
@@ -540,12 +540,12 @@ METRIC_RULES = {
         ],
     },
 }
-
+# tổng điểm tối đa có thể đạt được nếu tất cả các chỉ số đều ở mức xấu nhất, dùng để quy đổi sang band nguy cơ.
 MAX_CLINICAL_POINTS = 97
 
 
 # Load model và các artifact đi kèm từ thư mục assets.
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=1) # fix load 1 lần và cache kết quả trong memory cho các request sau.
 def _load_model_bundle():
     # Load model, scaler và imputer 1 lần rồi giữ trong memory cho các request sau.
     return {
@@ -554,17 +554,13 @@ def _load_model_bundle():
         "imputer": joblib.load(ASSETS_DIR / "imputer_median.pkl"),
     }
 
-
 # Đọc các median tham chiếu dùng cho biểu đồ và phần giải thích.
 @lru_cache(maxsize=1)
 def get_reference_stats() -> dict[str, float]:
-    # Dùng cho radar chart và so sánh với median tham chiếu của bộ dữ liệu.
     if not REFERENCE_STATS_FILE.exists():
         return REFERENCE_FALLBACK
-
     with REFERENCE_STATS_FILE.open("r", encoding="utf-8") as file:
         raw_stats = json.load(file)
-
     return {feature: float(raw_stats.get(feature, REFERENCE_FALLBACK[feature])) for feature in FEATURE_ORDER}
 
 
