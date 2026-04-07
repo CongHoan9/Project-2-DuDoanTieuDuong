@@ -50,6 +50,7 @@ const tabButtons = Array.from(document.querySelectorAll(".tab-button"));
 const tabPanels = Array.from(document.querySelectorAll(".tab-panel"));
 const libraryBandsCanvas = document.getElementById("libraryBandsChart");
 const librarySpreadCanvas = document.getElementById("librarySpreadChart");
+const UI = window.DiabetesUI;
 
 let radarChart = null;
 let libraryBandsChart = null;
@@ -58,120 +59,25 @@ let referenceStats = {};
 let clinicalContent = {};
 let modelInfo = {};
 let carePathwayItems = [];
+// Frontend luôn gọi cùng backend FastAPI qua /api trên cùng domain.
 const apiBase = DEFAULT_API_BASE;
 
-const countObserver = new IntersectionObserver(
-    (entries) => {
-        entries.forEach((entry) => {
-            if (!entry.isIntersecting) return;
-            if (!entry.target.classList.contains("count-up")) return;
-            if (entry.target.dataset.countAnimated === "true") return;
+const countObserver = UI.createCountObserver();
 
-            animateCountUp(entry.target);
-            countObserver.unobserve(entry.target);
-        });
-    },
-    { threshold: 0.45 }
-);
-
+// Trả về map tên hiển thị của các feature cho giao diện.
 function labelsMap() {
     return clinicalContent.feature_labels || fallbackLabels;
 }
 
-function numericValue(value, fallback = 0) {
-    return Number.isFinite(Number(value)) ? Number(value) : fallback;
-}
-
+// Ghép endpoint con thành URL API đầy đủ.
 function buildApiUrl(endpoint) {
     const safeEndpoint = String(endpoint || "").replace(/^\/+/, "");
     return `${apiBase}/${safeEndpoint}`;
 }
 
-function readAnimatedValue(text = "") {
-    const parsed = parseFloat(String(text).replace(/[^\d.-]/g, ""));
-    return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function animateMetricNumber(element, target, options = {}) {
-    if (!element || !Number.isFinite(target)) return;
-
-    const decimals = options.decimals ?? 0;
-    const prefix = options.prefix ?? "";
-    const suffix = options.suffix ?? "";
-    const duration = options.duration ?? 1100;
-    const startValue = options.start ?? readAnimatedValue(element.textContent);
-    const startTime = performance.now();
-
-    function frame(now) {
-        const progress = Math.min(1, (now - startTime) / duration);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        const current = startValue + (target - startValue) * eased;
-        element.textContent = `${prefix}${current.toFixed(decimals)}${suffix}`;
-
-        if (progress < 1) {
-            requestAnimationFrame(frame);
-            return;
-        }
-
-        element.textContent = `${prefix}${target.toFixed(decimals)}${suffix}`;
-    }
-
-    requestAnimationFrame(frame);
-}
-
-function primeCountUp(element, value, decimals = 0) {
-    if (!element) return;
-    element.dataset.countTarget = `${value}`;
-    element.dataset.countDecimals = `${decimals}`;
-    element.dataset.countAnimated = "false";
-}
-
-function animateCountUp(element) {
-    const target = numericValue(element.dataset.countTarget);
-    const decimals = numericValue(element.dataset.countDecimals);
-    const prefix = element.dataset.countPrefix || "";
-    const suffix = element.dataset.countSuffix || "";
-
-    element.dataset.countAnimated = "true";
-    animateMetricNumber(element, target, {
-        start: 0,
-        decimals,
-        prefix,
-        suffix
-    });
-}
-
-function observeCountUps(root = document) {
-    const targets = root instanceof Element && root.matches(".count-up")
-        ? [root, ...root.querySelectorAll(".count-up")]
-        : Array.from(root.querySelectorAll(".count-up"));
-
-    targets.forEach((element) => {
-        if (element.dataset.countAnimated !== "true") {
-            countObserver.observe(element);
-        }
-    });
-}
-
-function activateTab(tabName) {
-    tabButtons.forEach((button) => {
-        const isActive = button.dataset.tabTarget === tabName;
-        button.classList.toggle("is-active", isActive);
-        button.setAttribute("aria-selected", String(isActive));
-    });
-
-    tabPanels.forEach((panel) => {
-        panel.classList.toggle("is-active", panel.dataset.tabPanel === tabName);
-    });
-
-    requestAnimationFrame(() => {
-        radarChart?.resize();
-        libraryBandsChart?.resize();
-        librarySpreadChart?.resize();
-    });
-}
-
+// Lấy toàn bộ dữ liệu hiện tại từ form nhập liệu.
 function getInputPayload() {
+    // Đọc toàn bộ dữ liệu người dùng nhập từ form để gửi lên /api/predict.
     return {
         Pregnancies: parseInt(document.getElementById("Pregnancies").value, 10),
         Glucose: parseFloat(document.getElementById("Glucose").value),
@@ -184,6 +90,7 @@ function getInputPayload() {
     };
 }
 
+// Đổ dữ liệu vào form, thường dùng khi khôi phục trạng thái cũ.
 function setInputPayload(input) {
     featureOrder.forEach((feature) => {
         const field = document.getElementById(feature);
@@ -193,23 +100,7 @@ function setInputPayload(input) {
     });
 }
 
-function formatPercent(value) {
-    return `${(value * 100).toFixed(1)}%`;
-}
-
-function toneClass(level) {
-    if (["high", "critical"].includes(level)) return "tone-high";
-    if (["watch", "moderate"].includes(level)) return "tone-watch";
-    if (["low", "normal"].includes(level)) return "tone-normal";
-    return "tone-neutral";
-}
-
-function riskTone(probability) {
-    if (probability >= 0.75) return "tone-high";
-    if (probability >= 0.4) return "tone-watch";
-    return "tone-normal";
-}
-
+// Sinh các tín hiệu nhanh từ input hiện tại trước khi gọi model.
 function metricPreview(input) {
     const preview = [];
 
@@ -244,13 +135,14 @@ function metricPreview(input) {
     return preview;
 }
 
+// Render các card tín hiệu nhanh ở phần overview.
 function renderQuickSignals(input = getInputPayload()) {
     const signals = metricPreview(input);
     quickSignals.innerHTML = signals
         .map(
             (signal) => `
                 <article class="signal-card">
-                    <span class="status-chip ${toneClass(signal.tone)}">${signal.label}</span>
+                    <span class="status-chip ${UI.toneClass(signal.tone)}">${signal.label}</span>
                     <p>${signal.text}</p>
                 </article>
             `
@@ -258,28 +150,12 @@ function renderQuickSignals(input = getInputPayload()) {
         .join("");
 }
 
+// Hiển thị các tag chuyên khoa hỗ trợ cho ứng dụng.
 function renderSpecialties(items = []) {
     specialtyTags.innerHTML = items.map((item) => `<span>${item}</span>`).join("");
 }
 
-function updateRiskMeter(prediction) {
-    riskMeter.style.setProperty("--progress", `${Math.round(prediction.probability * 360)}deg`);
-    animateMetricNumber(riskPercent, prediction.probability * 100, {
-        decimals: 1,
-        suffix: "%"
-    });
-    riskBand.textContent = `${prediction.risk_band} - ${prediction.has_diabetes}`;
-    certaintyValue.textContent = prediction.certainty;
-    animateMetricNumber(modelProbability, prediction.model_probability * 100, {
-        decimals: 1,
-        suffix: "%"
-    });
-    animateMetricNumber(clinicalProbability, prediction.clinical_probability * 100, {
-        decimals: 1,
-        suffix: "%"
-    });
-}
-
+// Render phần kết luận chính sau khi có kết quả dự đoán.
 function renderResult(prediction) {
     resultPanel.classList.remove("hidden");
     summaryCard.innerHTML = `
@@ -289,7 +165,7 @@ function renderResult(prediction) {
     `;
 
     result.innerHTML = `
-        <span class="status-chip ${riskTone(prediction.probability)}">${prediction.has_diabetes}</span>
+                    <span class="status-chip ${UI.riskTone(prediction.probability)}">${prediction.has_diabetes}</span>
         <h2>Điểm nguy cơ ${prediction.risk_score}/100</h2>
         <p>${prediction.summary}</p>
         <p><strong>Diễn giải:</strong> ${prediction.clinical_interpretation}</p>
@@ -299,12 +175,13 @@ function renderResult(prediction) {
     `;
 }
 
+// Render danh sách các cảnh báo lâm sàng nổi bật.
 function renderAlerts(alerts = []) {
     alertsList.innerHTML = alerts
         .map(
             (alert) => `
                 <article class="stack-card">
-                    <span class="status-chip ${toneClass(alert.level)}">${alert.level}</span>
+                    <span class="status-chip ${UI.toneClass(alert.level)}">${alert.level}</span>
                     <h3>${alert.title}</h3>
                     <p>${alert.detail}</p>
                 </article>
@@ -313,6 +190,7 @@ function renderAlerts(alerts = []) {
         .join("");
 }
 
+// Render danh sách hành động gợi ý tiếp theo.
 function renderActions(actions = []) {
     actionsList.innerHTML = actions
         .map(
@@ -327,12 +205,13 @@ function renderActions(actions = []) {
         .join("");
 }
 
+// Render các card giải thích theo từng chỉ số đầu vào.
 function renderMetricInsights(insights = []) {
     metricInsights.innerHTML = insights
         .map(
             (item) => `
                 <article class="metric-card">
-                    <span class="status-chip ${toneClass(item.severity)}">${item.status}</span>
+                    <span class="status-chip ${UI.toneClass(item.severity)}">${item.status}</span>
                     <h3>${item.label}: ${item.value} ${item.unit}</h3>
                     <p><strong>Tham chiếu:</strong> ${item.reference}</p>
                     <p><strong>Ý nghĩa:</strong> ${item.clinical_note}</p>
@@ -343,6 +222,7 @@ function renderMetricInsights(insights = []) {
         .join("");
 }
 
+// Vẽ radar chart để so sánh input hiện tại với median tham chiếu.
 function renderRadarChart(input) {
     const labels = featureOrder.map((feature) => labelsMap()[feature] || feature);
     const normalizedUserValues = featureOrder.map((feature) => {
@@ -404,11 +284,13 @@ function renderRadarChart(input) {
     });
 }
 
+// Tách các con số từ chuỗi range để phục vụ trực quan hóa.
 function extractRangeNumbers(value) {
     const matches = String(value ?? "").match(/-?\d+(?:\.\d+)?/g);
     return matches ? matches.map(Number).filter((item) => Number.isFinite(item)) : [];
 }
 
+// Chuẩn hóa dữ liệu range tham chiếu thành profile dùng cho UI.
 function deriveRangeProfile(item = {}) {
     const optimalNumbers = extractRangeNumbers(item.optimal);
     const watchNumbers = extractRangeNumbers(item.watch);
@@ -430,6 +312,7 @@ function deriveRangeProfile(item = {}) {
     };
 }
 
+// Render hai biểu đồ thư viện lâm sàng ở tab Clinical Library.
 function renderLibraryVisuals(ranges = []) {
     if (!libraryBandsCanvas || !librarySpreadCanvas) return;
 
@@ -551,6 +434,7 @@ function renderLibraryVisuals(ranges = []) {
     });
 }
 
+// Render grid các mốc tham chiếu lâm sàng.
 function renderReferenceGrid(ranges = []) {
     referenceGrid.innerHTML = ranges
         .map(
@@ -567,6 +451,7 @@ function renderReferenceGrid(ranges = []) {
         .join("");
 }
 
+// Tăng cường thẻ tham chiếu bằng thanh band trực quan.
 function enhanceReferenceGrid(ranges = []) {
     renderReferenceGrid(ranges);
 
@@ -605,6 +490,7 @@ function enhanceReferenceGrid(ranges = []) {
     renderLibraryVisuals(ranges);
 }
 
+// Render lộ trình theo dõi/điều trị theo từng bước.
 function renderCarePathway(items = []) {
     if (!carePathway) return;
 
@@ -639,6 +525,7 @@ function renderCarePathway(items = []) {
     syncCarePathwayPreview(0);
 }
 
+// Đồng bộ phần preview khi người dùng chọn một bước trong lộ trình.
 function syncCarePathwayPreview(activeIndex) {
     if (!carePathway || !carePathwayItems.length) return;
 
@@ -659,6 +546,7 @@ function syncCarePathwayPreview(activeIndex) {
     `;
 }
 
+// Render thư viện nội dung giáo dục sức khỏe.
 function renderEducation(items = []) {
     educationList.innerHTML = items
         .map(
@@ -672,6 +560,7 @@ function renderEducation(items = []) {
         .join("");
 }
 
+// Render thông tin model, benchmark và metadata phục vụ demo.
 function renderModelInfo(info = {}) {
     const benchmark = info.benchmark || {};
     const accuracyValue = benchmark.holdout_accuracy != null
@@ -687,11 +576,11 @@ function renderModelInfo(info = {}) {
     modelVersion.textContent = `v${info.version || "2.0"}`;
     if (benchmark.holdout_roc_auc != null) {
         benchmarkStat.classList.add("count-up");
-        primeCountUp(benchmarkStat, benchmark.holdout_roc_auc, 3);
+        UI.primeCountUp(benchmarkStat, benchmark.holdout_roc_auc, 3);
         benchmarkStat.textContent = "0.000";
 
         if (benchmarkStat.dataset.countAnimated === "true") {
-            animateMetricNumber(benchmarkStat, benchmark.holdout_roc_auc, {
+            UI.animateMetricNumber(benchmarkStat, benchmark.holdout_roc_auc, {
                 start: 0,
                 decimals: 3
             });
@@ -742,6 +631,7 @@ function renderModelInfo(info = {}) {
     `;
 }
 
+// Render bảng lịch sử kiểm tra gần nhất.
 function renderHistory(rows = []) {
     if (!rows.length) {
         historyBody.innerHTML = '<tr><td colspan="6">Chưa có dữ liệu.</td></tr>';
@@ -753,8 +643,8 @@ function renderHistory(rows = []) {
             (item) => `
                 <tr>
                     <td>${new Date(item.created_at).toLocaleString("vi-VN")}</td>
-                    <td><span class="status-chip ${riskTone(item.probability)}">${item.has_diabetes}</span></td>
-                    <td>${formatPercent(item.probability)}</td>
+                    <td><span class="status-chip ${UI.riskTone(item.probability)}">${item.has_diabetes}</span></td>
+                    <td>${UI.formatPercent(item.probability)}</td>
                     <td>${item.glucose}</td>
                     <td>${item.bmi}</td>
                     <td>${item.age}</td>
@@ -764,6 +654,7 @@ function renderHistory(rows = []) {
         .join("");
 }
 
+// Lưu trạng thái dự đoán gần nhất trong session để reload trang không bị mất.
 function savePredictionState(prediction, input) {
     sessionStorage.setItem(
         STORAGE_KEY,
@@ -775,6 +666,7 @@ function savePredictionState(prediction, input) {
     );
 }
 
+// Khôi phục trạng thái dự đoán gần nhất từ session storage.
 function restorePredictionState() {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return;
@@ -783,7 +675,14 @@ function restorePredictionState() {
         const parsed = JSON.parse(raw);
         if (!parsed?.prediction || !parsed?.input) return;
         setInputPayload(parsed.input);
-        updateRiskMeter(parsed.prediction);
+        UI.updateRiskMeter(parsed.prediction, {
+            riskMeter,
+            riskPercent,
+            riskBand,
+            certaintyValue,
+            modelProbability,
+            clinicalProbability
+        });
         renderResult(parsed.prediction);
         renderAlerts(parsed.prediction.alerts || []);
         renderActions(parsed.prediction.recommended_actions || []);
@@ -796,7 +695,9 @@ function restorePredictionState() {
     }
 }
 
+// Hàm helper gọi API GET và trả về JSON.
 async function fetchJson(endpoint) {
+    // Helper chung cho các API GET trả JSON.
     const response = await fetch(buildApiUrl(endpoint));
     if (!response.ok) {
         throw new Error(`Không tải được ${endpoint}`);
@@ -804,11 +705,14 @@ async function fetchJson(endpoint) {
     return response.json();
 }
 
+// Tải lịch sử từ backend rồi render ra bảng.
 async function loadHistory() {
+    // Nạp các bản ghi gần nhất để đổ vào bảng History.
     const history = await fetchJson("history?limit=10");
     renderHistory(history);
 }
 
+// Hiển thị trạng thái lỗi khi gọi API hoặc render thất bại.
 function renderError(message) {
     resultPanel.classList.remove("hidden");
     summaryCard.innerHTML = `
@@ -822,7 +726,9 @@ function renderError(message) {
     metricInsights.innerHTML = "";
 }
 
+// Khởi tạo toàn bộ dữ liệu nền cần cho frontend khi mở ứng dụng.
 async function bootstrap() {
+    // Khi app mở lần đầu, tải toàn bộ dữ liệu nền cho giao diện.
     const [clinicalRes, modelRes, refRes] = await Promise.allSettled([
         fetchJson("clinical-content"),
         fetchJson("model-info"),
@@ -871,7 +777,11 @@ form.addEventListener("input", () => {
 
 tabButtons.forEach((button) => {
     button.addEventListener("click", () => {
-        activateTab(button.dataset.tabTarget);
+        UI.activateTab(button.dataset.tabTarget, tabButtons, tabPanels, [
+            radarChart,
+            libraryBandsChart,
+            librarySpreadChart
+        ]);
     });
 });
 
@@ -895,6 +805,7 @@ form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const input = getInputPayload();
 
+    // Khi submit: gọi API dự đoán rồi cập nhật toàn bộ dashboard kết quả.
     submitButton.disabled = true;
     submitButton.textContent = "Đang phân tích...";
 
@@ -910,7 +821,14 @@ form.addEventListener("submit", async (event) => {
         }
 
         const prediction = await response.json();
-        updateRiskMeter(prediction);
+        UI.updateRiskMeter(prediction, {
+            riskMeter,
+            riskPercent,
+            riskBand,
+            certaintyValue,
+            modelProbability,
+            clinicalProbability
+        });
         renderResult(prediction);
         renderAlerts(prediction.alerts || []);
         renderActions(prediction.recommended_actions || []);
@@ -919,7 +837,11 @@ form.addEventListener("submit", async (event) => {
             renderRadarChart(input);
         }
         savePredictionState(prediction, input);
-        activateTab("predict");
+        UI.activateTab("predict", tabButtons, tabPanels, [
+            radarChart,
+            libraryBandsChart,
+            librarySpreadChart
+        ]);
         await loadHistory();
     } catch (error) {
         renderError(error.message);
@@ -929,9 +851,13 @@ form.addEventListener("submit", async (event) => {
     }
 });
 
-primeCountUp(document.querySelector(".stat-card--primary .count-up"), 8, 0);
-primeCountUp(benchmarkStat, numericValue(benchmarkStat.dataset.countTarget, 0.829), 3);
+UI.primeCountUp(document.querySelector(".stat-card--primary .count-up"), 8, 0);
+UI.primeCountUp(benchmarkStat, UI.numericValue(benchmarkStat.dataset.countTarget, 0.829), 3);
 bootstrap().finally(() => {
-    activateTab("predict");
-    observeCountUps();
+    UI.activateTab("predict", tabButtons, tabPanels, [
+        radarChart,
+        libraryBandsChart,
+        librarySpreadChart
+    ]);
+    UI.observeCountUps(document, countObserver);
 });

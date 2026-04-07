@@ -544,8 +544,10 @@ METRIC_RULES = {
 MAX_CLINICAL_POINTS = 97
 
 
+# Load model và các artifact đi kèm từ thư mục assets.
 @lru_cache(maxsize=1)
 def _load_model_bundle():
+    # Load model, scaler và imputer 1 lần rồi giữ trong memory cho các request sau.
     return {
         "model": joblib.load(ASSETS_DIR / "diabetes_model.pkl"),
         "scaler": joblib.load(ASSETS_DIR / "scaler.pkl"),
@@ -553,8 +555,10 @@ def _load_model_bundle():
     }
 
 
+# Đọc các median tham chiếu dùng cho biểu đồ và phần giải thích.
 @lru_cache(maxsize=1)
 def get_reference_stats() -> dict[str, float]:
+    # Dùng cho radar chart và so sánh với median tham chiếu của bộ dữ liệu.
     if not REFERENCE_STATS_FILE.exists():
         return REFERENCE_FALLBACK
 
@@ -564,6 +568,7 @@ def get_reference_stats() -> dict[str, float]:
     return {feature: float(raw_stats.get(feature, REFERENCE_FALLBACK[feature])) for feature in FEATURE_ORDER}
 
 
+# Trả về metadata của model để frontend hiển thị ở phần giới thiệu model.
 def get_model_profile() -> dict:
     return {
         "name": "Diabetes Clinical Hybrid",
@@ -582,6 +587,7 @@ def get_model_profile() -> dict:
     }
 
 
+# Trả về nội dung lâm sàng, chuyên khoa và thư viện giải thích cho UI.
 def get_clinical_content() -> dict:
     return {
         "feature_labels": FEATURE_LABELS,
@@ -593,6 +599,7 @@ def get_clinical_content() -> dict:
     }
 
 
+# Format giá trị theo từng loại feature để hiển thị đẹp hơn.
 def _format_value(metric: str, value: float) -> str:
     if metric in {"Pregnancies", "Age"}:
         return str(int(round(value)))
@@ -601,6 +608,7 @@ def _format_value(metric: str, value: float) -> str:
     return f"{value:.1f}"
 
 
+# Tạo câu mô tả vì sao một chỉ số trở thành yếu tố nổi bật.
 def _build_driver(metric: str, value: float, reference: float, detail: str) -> str:
     return (
         f"{FEATURE_LABELS[metric]} {_format_value(metric, value)} {FEATURE_UNITS[metric]} "
@@ -608,6 +616,7 @@ def _build_driver(metric: str, value: float, reference: float, detail: str) -> s
     )
 
 
+# Đánh giá một chỉ số riêng lẻ và sinh MetricInsight tương ứng.
 def _evaluate_metric(metric: str, value: float, reference: float) -> tuple[MetricInsight, int, str | None]:
     rules = METRIC_RULES[metric]
 
@@ -654,6 +663,7 @@ def _evaluate_metric(metric: str, value: float, reference: float) -> tuple[Metri
     raise ValueError(f"Could not evaluate metric {metric}")
 
 
+# Quy đổi xác suất cuối sang nhãn band nguy cơ dễ hiểu cho người dùng.
 def _probability_to_band(probability: float) -> str:
     if probability < 0.2:
         return "Thấp"
@@ -666,6 +676,7 @@ def _probability_to_band(probability: float) -> str:
     return "Rất cao"
 
 
+# Quy đổi xác suất sang mức độ chắc chắn của mô hình.
 def _probability_to_certainty(probability: float) -> str:
     gap = abs(probability - 0.5)
     if gap < 0.08:
@@ -675,7 +686,9 @@ def _probability_to_certainty(probability: float) -> str:
     return "Cao"
 
 
+# Tổng hợp insight, điểm rule-based và các driver từ toàn bộ input.
 def _build_metric_package(input_dict: dict[str, float]) -> tuple[list[MetricInsight], int, list[str], list[str]]:
+    # Biến input thô thành insight theo từng chỉ số + điểm nguy cơ lâm sàng tổng hợp.
     reference_stats = get_reference_stats()
     insights = []
     drivers = []
@@ -697,6 +710,7 @@ def _build_metric_package(input_dict: dict[str, float]) -> tuple[list[MetricInsi
     return insights, total_points, drivers, missing_data_flags
 
 
+# Sinh các alert lâm sàng nổi bật từ xác suất và dữ liệu đầu vào.
 def _build_alerts(probability: float, input_dict: dict[str, float], missing_data_flags: list[str]) -> list[ClinicalAlert]:
     alerts = []
 
@@ -757,6 +771,7 @@ def _build_alerts(probability: float, input_dict: dict[str, float], missing_data
     return alerts
 
 
+# Sinh danh sách hành động gợi ý tiếp theo cho người dùng.
 def _build_actions(probability: float, input_dict: dict[str, float]) -> list[RecommendedAction]:
     actions = []
 
@@ -824,6 +839,7 @@ def _build_actions(probability: float, input_dict: dict[str, float]) -> list[Rec
     return actions[:4]
 
 
+# Gom các ý chính thành summary, advice và interpretation dễ đọc.
 def _compose_text(probability: float, risk_band: str, key_drivers: list[str]) -> tuple[str, str, str]:
     if probability >= 0.7:
         summary = "Hồ sơ đang nằm trong nhóm nguy cơ cao và nên được xác nhận sớm bằng xét nghiệm chuẩn."
@@ -840,23 +856,28 @@ def _compose_text(probability: float, risk_band: str, key_drivers: list[str]) ->
     return summary, advice, interpretation
 
 
+# Hàm suy luận chính: tiền xử lý input, chạy model, cộng rule lâm sàng và trả kết quả.
 def predict_diabetes(data: PredictionInput) -> PredictionOutput:
     input_dict = data.model_dump()
     bundle = _load_model_bundle()
 
+    # Các giá trị 0 ở một số cột được xem là thiếu dữ liệu nên đổi sang NaN trước khi impute.
     raw_input = []
     for feature in FEATURE_ORDER:
         value = input_dict[feature]
         raw_input.append(np.nan if feature in ZERO_AS_MISSING and value == 0 else value)
 
+    # Pipeline ML cơ bản: impute -> scale -> predict xác suất bằng model đã train.
     input_array = np.array([raw_input], dtype=float)
     imputed = bundle["imputer"].transform(input_array)
     scaled = bundle["scaler"].transform(imputed)
     model_probability = float(bundle["model"].predict_proba(scaled)[0][1])
 
+    # Tầng lâm sàng cộng thêm rule-based score để kết quả dễ giải thích hơn.
     metric_insights, total_points, drivers, missing_data_flags = _build_metric_package(input_dict)
     clinical_probability = min(total_points / MAX_CLINICAL_POINTS, 1.0)
 
+    # Xác suất cuối là sự pha trộn giữa model ML và điểm lâm sàng.
     probability = (model_probability * 0.72) + (clinical_probability * 0.28)
     if input_dict["Glucose"] >= 126 and input_dict["BMI"] >= 30:
         probability += 0.04
@@ -880,6 +901,7 @@ def predict_diabetes(data: PredictionInput) -> PredictionOutput:
     alerts = _build_alerts(probability, input_dict, missing_data_flags)
     actions = _build_actions(probability, input_dict)
 
+    # Gói toàn bộ dữ liệu frontend cần để render dashboard và phần giải thích.
     return PredictionOutput(
         has_diabetes=has_diabetes,
         probability=round(probability, 3),

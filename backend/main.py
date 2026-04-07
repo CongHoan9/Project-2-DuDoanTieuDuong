@@ -15,11 +15,12 @@ BACKEND_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BACKEND_DIR.parent / "frontend"
 APP_VERSION = "2.2.0"
 
+# Tạo bảng SQLite ngay khi app khởi động để không cần bước setup riêng.
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Diabetes Clinical Risk API",
-    description="Single Render web service for the diabetes dashboard, API endpoints, and optional Supabase history.",
+    description="FastAPI service for the diabetes dashboard, prediction API, and local SQLite history.",
     version=APP_VERSION,
 )
 
@@ -35,6 +36,7 @@ app.include_router(router)
 
 
 if FRONTEND_DIR.exists():
+    # Serve luôn frontend để chỉ cần chạy 1 FastAPI app duy nhất.
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 else:
     @app.get("/")
