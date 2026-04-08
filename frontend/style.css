@@ -958,6 +958,10 @@ button:disabled {
     overflow-wrap: anywhere;
 }
 
+.signal-card p {
+    margin: 6px 0 !important;
+}
+
 .summary-card > .section-heading {
     margin-bottom: 2px;
 }
