@@ -1433,6 +1433,12 @@ button:disabled {
     border-bottom: none;
 }
 
+.history-toolbar, 
+.history-toolbar__row, 
+.history-filter {
+    display: grid;
+}
+
 .status-chip {
     padding: 6px 12px;
     font-size: 0.82rem;
