@@ -751,12 +751,11 @@ input:focus {
 }
 
 .form-footer {
+    gap: 18px;
     display: flex;
+    padding: 16px 0;
     align-items: center;
     justify-content: space-between;
-    gap: 18px;
-    margin-top: 4px;
-    padding-top: 24px;
     border-top: 1px solid rgba(18, 38, 32, 0.08);
 }
 
@@ -1891,7 +1890,7 @@ select:focus {
 .table-wrap {
     overflow-x: auto;
     max-width: 100%;
-    margin-top: 4px;
+    margin: 16px 0;
     border-radius: var(--radius-md);
     border: 1px solid var(--line);
     background: var(--surface-strong);
@@ -2291,7 +2290,6 @@ select:focus {
     }
 
     .form-footer {
-        padding: 16px 0;
         width: 100%;
         gap: 14px;
     }
