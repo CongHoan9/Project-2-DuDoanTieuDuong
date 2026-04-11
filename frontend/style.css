@@ -2291,9 +2291,9 @@ select:focus {
     }
 
     .form-footer {
+        padding: 16px 0;
         width: 100%;
         gap: 14px;
-        padding-top: 18px;
     }
 
     button {
@@ -2565,10 +2565,6 @@ select:focus {
 
     .intake-form {
         gap: 22px;
-    }
-
-    .form-footer {
-        padding-top: 16px;
     }
 
     .risk-meter {
