@@ -6,8 +6,7 @@ Project hiện dùng kiến trúc đơn giản:
 
 - `FastAPI` serve cả frontend và API
 - Frontend gọi nội bộ qua `/api`
-- Lịch sử kiểm tra chỉ lưu bằng `SQLite local`
-- Không dùng `Supabase`
+- Lịch sử kiểm tra lưu bằng `Supabase`
 
 ## 1) Mô tả bài toán
 
