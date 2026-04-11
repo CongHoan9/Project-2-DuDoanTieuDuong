@@ -1473,19 +1473,6 @@ button:disabled {
     overflow: hidden;
 }
 
-.history-toolbar,
-.history-toolbar__row,
-.history-filter,
-.history-detail-shell,
-.history-table-status,
-.history-record,
-.history-record__header,
-.history-record__summary,
-.history-record__meta,
-.history-record__fields {
-    display: grid;
-}
-
 .history-toolbar {
     gap: 14px;
     margin-bottom: 16px;
