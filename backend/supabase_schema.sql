@@ -24,3 +24,13 @@ create table if not exists prediction_history (
 
 create index if not exists idx_prediction_history_created_at
     on prediction_history (created_at desc);
+
+-- Khi có lệnh UPDATE, không làm gì cả
+CREATE RULE "no_update_on_history" AS 
+ON UPDATE TO prediction_history 
+DO INSTEAD NOTHING;
+
+-- Nếu có lệnh DELETE, không làm gì cả
+CREATE RULE "no_delete_on_history" AS
+ON DELETE TO prediction_history
+DO INSTEAD NOTHING;

@@ -1833,4 +1833,68 @@ loadHistory = async function(selectedId = null) {
     renderHistoryV2Placeholder("Chọn một bản ghi", "Chi tiết sẽ được tải khi bạn chọn một dòng trong lịch sử ở bên trên.");
 };
 
-ensureHistoryV2Layout();
+function connectSSE() {
+    const evtSource = new EventSource(buildApiUrl("events"));
+
+    evtSource.addEventListener("history_update", async (e) => {
+        try {
+            const { action } = JSON.parse(e.data);
+            if (action === "INSERT") {
+                await handleSSEInsert();
+            }
+        } catch (err) {
+            console.error("SSE Message Error:", err);
+        }
+    });
+
+    evtSource.onerror = () => {
+        evtSource.close();
+        setTimeout(connectSSE, 3000);
+    };
+}
+
+async function handleSSEInsert() {
+    try {
+        // Chỉ lấy 1 record mới nhất từ API để đảm bảo data chuẩn format backend
+        const [newItem] = await fetchJson("history?limit=1");
+        if (!newItem) return;
+
+        // Chặn trùng lặp
+        if (historyV2State.rows.some((r) => r.id === newItem.id)) return;
+
+        // Cập nhật State
+        historyV2State.rows.unshift(newItem);
+        if (historyV2State.rows.length > 50) {
+            historyV2State.rows.pop(); // Xóa bản ghi cũ nhất
+        }
+
+        // Cập nhật UI
+        renderHistory(historyV2State.rows);
+        showToast(`✨ Có dự đoán mới cho #${newItem.id}`);
+    } catch (err) {
+        console.error("Update UI failed:", err);
+    }
+}
+
+async function initApp() {
+    try {
+        // 1. Đảm bảo giao diện đã sẵn sàng
+        ensureHistoryV2Layout();
+        console.log("Layout initialized");
+
+        // 2. Load dữ liệu quá khứ trước
+        // Dùng 'await' để chắc chắn dữ liệu cũ đã nằm trong state
+        await loadHistory();
+        console.log("History loaded");
+
+        // 3. Cuối cùng mới lắng nghe biến động thời gian thực
+        connectSSE();
+        console.log("Real-time connected");
+
+    } catch (err) {
+        console.error("App initialization failed:", err);
+        showToast("Lỗi khởi tạo dữ liệu, vui lòng F5");
+    }
+}
+
+initApp();

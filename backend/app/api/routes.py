@@ -1,4 +1,7 @@
-from fastapi import APIRouter, HTTPException
+import json
+from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import StreamingResponse
+from app.services.sse_manager import get_sse_manager
 
 from app.config import get_settings
 from app.schemas.history import (
@@ -67,3 +70,28 @@ def model_info():
 @router.get("/clinical-content")
 def clinical_content():
     return get_clinical_content()
+
+
+@router.get("/events")
+async def sse_events(request: Request):
+    """SSE endpoint — client kết nối vào đây để nhận real-time updates."""
+    sse = get_sse_manager()
+    
+    async def event_generator():
+        # Gửi ping đầu tiên để xác nhận kết nối
+        yield f"event: connected\ndata: {json.dumps({'clients': sse.connection_count})}\n\n"
+        
+        async for message in sse.subscribe():
+            # Kiểm tra client còn kết nối không
+            if await request.is_disconnected():
+                break
+            yield message
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # Quan trọng cho Nginx/Render
+        }
+    )

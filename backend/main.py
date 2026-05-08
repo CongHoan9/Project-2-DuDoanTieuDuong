@@ -1,3 +1,5 @@
+import asyncio
+
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -8,9 +10,9 @@ from fastapi.staticfiles import StaticFiles
 from app.api.routes import router
 from app.config import get_settings
 from app.database import Base, engine
-from app.models import check as _check_models
-from app.services.history_store import get_history_store
 from app.services.prediction import _load_model_bundle
+from app.services.history_store import get_history_store
+from app.services.realtime_listener import start_supabase_listener
 
 
 settings = get_settings()
@@ -28,6 +30,7 @@ def initialize_application() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     initialize_application()
+    asyncio.create_task(start_supabase_listener())
     yield
 
 

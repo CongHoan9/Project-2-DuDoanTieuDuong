@@ -16,7 +16,9 @@ load_dotenv(BACKEND_DIR / ".env")
 @dataclass(frozen=True)
 class Settings:
     cors_allow_origins: list[str]
-    database_url: str
+    database_url: str 
+    supabase_url: str
+    supabase_key: str
     database_backend: str
 
 
@@ -56,25 +58,39 @@ def _detect_database_backend(database_url: str) -> str:
 def _require_database_url() -> str:
     raw_database_url = os.getenv("DATABASE_URL", "").strip()
     if not raw_database_url:
-        raise RuntimeError(
-            "DATABASE_URL is required. Set it to your Supabase Postgres connection string."
-        )
-
+        raise RuntimeError("DATABASE_URL is required. Set it to your Supabase Postgres connection string.")
     database_url = _normalize_database_url(raw_database_url)
     if database_url.startswith("sqlite"):
-        raise RuntimeError(
-            "SQLite fallback has been removed. Please use a Supabase/Postgres DATABASE_URL."
-        )
+        raise RuntimeError("SQLite fallback has been removed. Please use a Supabase/Postgres DATABASE_URL.")
 
     return database_url
+
+
+def _require_supabase_url() -> str:
+    """Lấy Supabase URL từ env, hỗ trợ cả prefix của Next.js."""
+    url = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+    if not url:
+        raise RuntimeError("SUPABASE_URL is required. Check your .env file.")
+    return url.strip()
+
+
+def _require_supabase_key() -> str:
+    """Lấy Supabase Key từ env, hỗ trợ cả prefix của Next.js."""
+    key = os.getenv("SUPABASE_KEY") or os.getenv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")
+    if not key:
+        raise RuntimeError("SUPABASE_KEY is required. Check your .env file.")
+    return key.strip()
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     database_url = _require_database_url()
-
+    supabase_url = _require_supabase_url()
+    supabase_key = _require_supabase_key()
     return Settings(
         cors_allow_origins=_parse_origins(os.getenv("CORS_ALLOW_ORIGINS")),
         database_url=database_url,
+        supabase_url=supabase_url,
+        supabase_key=supabase_key,
         database_backend=_detect_database_backend(database_url),
     )
