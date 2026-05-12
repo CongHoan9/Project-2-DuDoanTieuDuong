@@ -5,6 +5,7 @@ from pathlib import Path
 
 import joblib
 import numpy as np
+import pandas as pd
 
 from app.schemas.prediction import ClinicalAlert, MetricInsight, PredictionInput, PredictionOutput, RecommendedAction
 
@@ -864,8 +865,8 @@ def predict_diabetes(data: PredictionInput) -> PredictionOutput:
         raw_input.append(np.nan if feature in ZERO_AS_MISSING and value == 0 else value)
 
     # Pipeline ML cơ bản: impute -> scale -> predict xác suất bằng model đã train.
-    input_array = np.array([raw_input], dtype=float)
-    imputed = bundle["imputer"].transform(input_array)
+    input_frame = pd.DataFrame([raw_input], columns=FEATURE_ORDER, dtype=float)
+    imputed = bundle["imputer"].transform(input_frame)
     scaled = bundle["scaler"].transform(imputed)
     model_probability = float(bundle["model"].predict_proba(scaled)[0][1])
 

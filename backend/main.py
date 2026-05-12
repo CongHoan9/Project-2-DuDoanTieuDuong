@@ -1,5 +1,3 @@
-import asyncio
-
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -9,10 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
 from app.config import get_settings
-from app.database import Base, engine
 from app.services.prediction import _load_model_bundle
-from app.services.history_store import get_history_store
-from app.services.realtime_listener import start_supabase_listener
 
 
 settings = get_settings()
@@ -22,15 +17,12 @@ APP_VERSION = "2.3.0"
 
 
 def initialize_application() -> None:
-    Base.metadata.create_all(bind=engine)
-    get_history_store()
     _load_model_bundle()
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     initialize_application()
-    asyncio.create_task(start_supabase_listener())
     yield
 
 
@@ -53,6 +45,11 @@ app.include_router(router)
 
 
 if FRONTEND_DIR.exists():
+    # Suppress Chrome DevTools discovery request (returns 404 otherwise via StaticFiles)
+    @app.get("/.well-known/appspecific/com.chrome.devtools.json", include_in_schema=False)
+    def chrome_devtools_json():
+        return {}
+
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 else:
     @app.get("/")

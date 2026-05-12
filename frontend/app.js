@@ -46,8 +46,7 @@ const riskBand = document.getElementById("riskBand");
 const certaintyValue = document.getElementById("certaintyValue");
 const modelProbability = document.getElementById("modelProbability");
 const clinicalProbability = document.getElementById("clinicalProbability");
-const tabButtons = Array.from(document.querySelectorAll(".tab-button"));
-const tabPanels = Array.from(document.querySelectorAll(".tab-panel"));
+// tabButtons and tabPanels are queried fresh each time since auth-rbac.js rebuilds the nav dynamically.
 const libraryBandsCanvas = document.getElementById("libraryBandsChart");
 const librarySpreadCanvas = document.getElementById("librarySpreadChart");
 const UI = window.DiabetesUI;
@@ -706,9 +705,7 @@ async function fetchJson(endpoint) {
 
 // Tải lịch sử từ backend rồi render ra bảng.
 async function loadHistory() {
-    // Nạp các bản ghi gần nhất để đổ vào bảng History.
-    const history = await fetchJson("history?limit=10");
-    renderHistory(history);
+    renderHistory([]);
 }
 
 // Hiển thị trạng thái lỗi khi gọi API hoặc render thất bại.
@@ -726,6 +723,25 @@ function renderError(message) {
 }
 
 // Khởi tạo toàn bộ dữ liệu nền cần cho frontend khi mở ứng dụng.
+function showToast(message) {
+    let toast = document.getElementById("appToast");
+    if (!toast) {
+        toast = document.createElement("div");
+        toast.id = "appToast";
+        toast.className = "app-toast";
+        toast.setAttribute("role", "status");
+        toast.setAttribute("aria-live", "polite");
+        document.body.appendChild(toast);
+    }
+
+    window.clearTimeout(showToast.timeoutId);
+    toast.textContent = message;
+    toast.classList.add("is-visible");
+    showToast.timeoutId = window.setTimeout(() => {
+        toast.classList.remove("is-visible");
+    }, 3200);
+}
+
 async function bootstrap() {
     // Khi app mở lần đầu, tải toàn bộ dữ liệu nền cho giao diện.
     const [clinicalRes, modelRes, refRes] = await Promise.allSettled([
@@ -762,10 +778,6 @@ async function bootstrap() {
         referenceStats = refRes.value;
     }
 
-    await loadHistory().catch(() => {
-        historyBody.innerHTML = '<tr><td colspan="6">Không tải được lịch sử từ backend.</td></tr>';
-    });
-
     restorePredictionState();
     renderQuickSignals();
 }
@@ -774,14 +786,10 @@ form.addEventListener("input", () => {
     renderQuickSignals();
 });
 
-tabButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-        UI.activateTab(button.dataset.tabTarget, tabButtons, tabPanels, [
-            radarChart,
-            libraryBandsChart,
-            librarySpreadChart
-        ]);
-    });
+// Tab clicks are handled by auth-rbac.js via event delegation on #mainTabNav.
+// Chart resize is triggered via the 'diabetes:tab-activated' custom event dispatched by auth-rbac.js.
+window.addEventListener("diabetes:tab-activated", () => {
+    [radarChart, libraryBandsChart, librarySpreadChart].forEach((c) => c?.resize?.());
 });
 
 if (carePathway) {
@@ -840,13 +848,15 @@ form.addEventListener("submit", async (event) => {
         }
         // Lưu trạng thái dự đoán và input hiện tại vào session storage để nếu reload trang vẫn giữ được kết quả.
         savePredictionState(prediction, input);
+        window.dispatchEvent(new CustomEvent("diabetes:prediction-complete", {
+            detail: { input, prediction }
+        }));
         // gọi fun activateTab bên ui.js.
-        UI.activateTab("predict", tabButtons, tabPanels, [
-            radarChart,
-            libraryBandsChart,
-            librarySpreadChart
-        ]);
-        await loadHistory();
+        UI.activateTab("predict",
+            Array.from(document.querySelectorAll(".tab-button")),
+            Array.from(document.querySelectorAll(".tab-panel")),
+            [radarChart, libraryBandsChart, librarySpreadChart]
+        );
     } catch (error) {
         renderError(error.message);
     } finally {
@@ -858,11 +868,11 @@ form.addEventListener("submit", async (event) => {
 UI.primeCountUp(document.querySelector(".stat-card--primary .count-up"), 8, 0);
 UI.primeCountUp(benchmarkStat, UI.numericValue(benchmarkStat.dataset.countTarget, 0.829), 3);
 bootstrap().finally(() => {
-    UI.activateTab("predict", tabButtons, tabPanels, [
-        radarChart,
-        libraryBandsChart,
-        librarySpreadChart
-    ]);
+    UI.activateTab("predict",
+        Array.from(document.querySelectorAll(".tab-button")),
+        Array.from(document.querySelectorAll(".tab-panel")),
+        [radarChart, libraryBandsChart, librarySpreadChart]
+    );
     UI.observeCountUps(document, countObserver);
 });
 
@@ -1007,18 +1017,7 @@ function ensureHistoryEnhancement() {
                 box-shadow: none;
             }
 
-            #historyTable tbody tr[data-history-id] {
-                cursor: pointer;
-                transition: background 180ms ease;
-            }
 
-            #historyTable tbody tr[data-history-id]:hover {
-                background: rgba(13, 107, 89, 0.06);
-            }
-
-            #historyTable tbody tr.is-active {
-                background: rgba(13, 107, 89, 0.12);
-            }
 
             @media (max-width: 1240px) {
                 .history-panel.history-panel--enhanced,
@@ -1231,12 +1230,7 @@ async function selectHistoryRecord(recordId) {
     renderHistory(historyDetailState.rows);
     renderHistoryDetailPlaceholder("Äang táº£i chi tiáº¿t", "Äang láº¥y pháº§n diá»…n giáº£i lÃ¢m sÃ ng cho báº£n ghi nÃ y...");
 
-    try {
-        const detail = await fetchJson(`history/${recordId}`);
-        renderHistoryDetail(detail);
-    } catch (error) {
-        renderHistoryDetailPlaceholder("KhÃ´ng táº£i Ä‘Æ°á»£c chi tiáº¿t", error.message);
-    }
+    renderHistoryDetailPlaceholder("Đăng nhập để xem lịch sử", "Lịch sử dự đoán được tải trực tiếp từ Supabase theo tài khoản đang đăng nhập.");
 }
 
 renderHistory = function(rows = []) {
@@ -1267,17 +1261,7 @@ renderHistory = function(rows = []) {
 };
 
 loadHistory = async function(selectedId = null) {
-    const history = await fetchJson("history?limit=10");
-    renderHistory(history);
-
-    if (!history.length) {
-        return;
-    }
-
-    const requestedId = selectedId || historyDetailState.selectedId;
-    const preferredRow = history.find((item) => item.id === requestedId) || history[0];
-    const preferredId = preferredRow.id;
-    await selectHistoryRecord(preferredId);
+    renderHistory([]);
 };
 
 historyBody.addEventListener("click", (event) => {
@@ -1305,6 +1289,7 @@ const historyV2State = {
     filtersBound: false,
     detailBound: false
 };
+window.historyV2State = historyV2State;
 
 const historyV2FallbackLabels = {
     Pregnancies: "S\u1ed1 l\u1ea7n mang thai",
@@ -1514,11 +1499,11 @@ function getHistoryV2Controls() {
     };
 }
 
-function renderHistoryV2Placeholder(title, message) {
-    const controls = getHistoryV2Controls();
-    if (!controls?.detailContent) return;
+function renderHistoryV2Placeholder(title, message, targetEl) {
+    const container = targetEl ?? getHistoryV2Controls()?.detailContent;
+    if (!container) return;
 
-    controls.detailContent.innerHTML = `
+    container.innerHTML = `
         <article class="history-record history-record--empty">
             <h3>${historyEscapeHtml(title)}</h3>
             <p>${historyEscapeHtml(message)}</p>
@@ -1584,9 +1569,9 @@ function getFilteredHistoryRows() {
     return rows;
 }
 
-function renderHistoryV2Detail(detail) {
-    const controls = getHistoryV2Controls();
-    if (!controls?.detailContent) return;
+function renderHistoryV2Detail(detail, targetEl) {
+    const container = targetEl ?? getHistoryV2Controls()?.detailContent;
+    if (!container) return;
 
     const input = detail.input_data || {};
     const prediction = detail.prediction || {};
@@ -1631,7 +1616,7 @@ function renderHistoryV2Detail(detail) {
             </tr>
         `;
 
-    controls.detailContent.innerHTML = `
+    container.innerHTML = `
         <article class="history-record">
             <header class="history-record__topbar">
                 <div class="history-record__headline">
@@ -1741,6 +1726,10 @@ function renderHistoryV2Detail(detail) {
     `;
 }
 
+// Expose for reuse (e.g. admin modal)
+window.renderHistoryV2Detail = renderHistoryV2Detail;
+window.renderHistoryV2Placeholder = renderHistoryV2Placeholder;
+
 selectHistoryRecord = async function(recordId) {
     const numericId = Number(recordId);
     if (!Number.isFinite(numericId)) return;
@@ -1754,20 +1743,8 @@ selectHistoryRecord = async function(recordId) {
         return;
     }
 
-    const requestId = ++historyV2State.activeRequestId;
-    renderHistoryV2Placeholder("Đang tải chi tiết", "Đang lấy chi tiết lâm sàng cho bản ghi được chọn...");
-
-    try {
-        const detail = await fetchJson(`history/${numericId}`);
-        if (requestId !== historyV2State.activeRequestId) return;
-        historyV2State.detailCache.set(numericId, detail);
-        if (historyV2State.selectedId === numericId) {
-            renderHistoryV2Detail(detail);
-        }
-    } catch (error) {
-        if (requestId !== historyV2State.activeRequestId) return;
-        renderHistoryV2Placeholder("Không tải được chi tiết", error.message);
-    }
+    // Data not in cache yet — just show a loading state
+    renderHistoryV2Placeholder("Đang tải chi tiết", "Đang lấy phần diễn giải lâm sàng cho bản ghi này...");
 };
 
 renderHistory = function(rows = []) {
@@ -1796,6 +1773,9 @@ renderHistory = function(rows = []) {
     if (historyV2State.selectedId && !visibleIds.has(historyV2State.selectedId)) {
         historyV2State.selectedId = null;
         renderHistoryV2Placeholder("Bản ghi đã bị ẩn bởi bộ lọc", "Hãy chọn một bản ghi đang hiển thị để xem chi tiết.");
+    } else if (!historyV2State.selectedId) {
+        // If there's data but no row is selected, clear any old placeholder (like 'Login to view')
+        renderHistoryV2Placeholder("Chọn một bản ghi", "Chi tiết sẽ được tải khi bạn chọn một dòng trong lịch sử ở bên trên.");
     }
 
     historyBody.innerHTML = historyV2State.filteredRows
@@ -1812,68 +1792,15 @@ renderHistory = function(rows = []) {
 };
 
 loadHistory = async function(selectedId = null) {
-    const history = await fetchJson("history");
-    renderHistory(history);
-
-    if (!history.length) {
-        renderHistoryV2Placeholder("Chưa có lịch sử", "Hãy thực hiện một lần dự đoán để lưu bản ghi đầu tiên.");
-        return;
-    }
-
-    if (selectedId != null) {
-        await selectHistoryRecord(selectedId);
-        return;
-    }
-
-    if (historyV2State.selectedId && historyV2State.detailCache.has(historyV2State.selectedId)) {
-        renderHistoryV2Detail(historyV2State.detailCache.get(historyV2State.selectedId));
-        return;
-    }
-
-    renderHistoryV2Placeholder("Chọn một bản ghi", "Chi tiết sẽ được tải khi bạn chọn một dòng trong lịch sử ở bên trên.");
+    renderHistory([]);
+    renderHistoryV2Placeholder("Đăng nhập để xem lịch sử", "Lịch sử dự đoán được tải trực tiếp từ Supabase theo tài khoản đang đăng nhập.");
 };
 
-function connectSSE() {
-    const evtSource = new EventSource(buildApiUrl("events"));
-
-    evtSource.addEventListener("history_update", async (e) => {
-        try {
-            const { action } = JSON.parse(e.data);
-            if (action === "INSERT") {
-                await handleSSEInsert();
-            }
-        } catch (err) {
-            console.error("SSE Message Error:", err);
-        }
-    });
-
-    evtSource.onerror = () => {
-        evtSource.close();
-        setTimeout(connectSSE, 3000);
-    };
+function removedConnectionHook() {
 }
 
-async function handleSSEInsert() {
-    try {
-        // Chỉ lấy 1 record mới nhất từ API để đảm bảo data chuẩn format backend
-        const [newItem] = await fetchJson("history?limit=1");
-        if (!newItem) return;
-
-        // Chặn trùng lặp
-        if (historyV2State.rows.some((r) => r.id === newItem.id)) return;
-
-        // Cập nhật State
-        historyV2State.rows.unshift(newItem);
-        if (historyV2State.rows.length > 50) {
-            historyV2State.rows.pop(); // Xóa bản ghi cũ nhất
-        }
-
-        // Cập nhật UI
-        renderHistory(historyV2State.rows);
-        showToast(`✨ Có dự đoán mới cho #${newItem.id}`);
-    } catch (err) {
-        console.error("Update UI failed:", err);
-    }
+async function removedHistoryInsertHook() {
+    showToast("Lịch sử mới đã được lưu trong Supabase.");
 }
 
 async function initApp() {
@@ -1882,14 +1809,8 @@ async function initApp() {
         ensureHistoryV2Layout();
         console.log("Layout initialized");
 
-        // 2. Load dữ liệu quá khứ trước
-        // Dùng 'await' để chắc chắn dữ liệu cũ đã nằm trong state
         await loadHistory();
-        console.log("History loaded");
-
-        // 3. Cuối cùng mới lắng nghe biến động thời gian thực
-        connectSSE();
-        console.log("Real-time connected");
+        console.log("Supabase-owned history placeholder ready");
 
     } catch (err) {
         console.error("App initialization failed:", err);
