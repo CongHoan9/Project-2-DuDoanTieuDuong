@@ -1807,13 +1807,10 @@ async function initApp() {
     try {
         // 1. Đảm bảo giao diện đã sẵn sàng
         ensureHistoryV2Layout();
-        console.log("Layout initialized");
 
         await loadHistory();
-        console.log("Supabase-owned history placeholder ready");
 
     } catch (err) {
-        console.error("App initialization failed:", err);
         showToast("Lỗi khởi tạo dữ liệu, vui lòng F5");
     }
 }

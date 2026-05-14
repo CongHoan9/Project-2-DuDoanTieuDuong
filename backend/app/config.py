@@ -39,9 +39,7 @@ def _require_supabase_url() -> str:
 def _require_supabase_public_key() -> str:
     key = (
         os.getenv("SUPABASE_ANON_KEY")
-        or os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
         or os.getenv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")
-        or os.getenv("SUPABASE_KEY")
     )
     if not key:
         raise RuntimeError("SUPABASE_ANON_KEY or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is required for browser auth.")

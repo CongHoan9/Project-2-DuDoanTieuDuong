@@ -4,14 +4,13 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Diabetes Clinical Risk Dashboard</title>
+    <title>Bảng đánh giá nguy cơ Đái tháo đường</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
         href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Sora:wght@400;500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap"
         rel="stylesheet" />
     <link rel="stylesheet" href="style.css" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230d6b59'/%3E%3Cpath d='M10 16h12M16 10v12' stroke='%23fff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -21,7 +20,7 @@
         <section class="panel hero-panel content-frame content-frame--hero">
             <div class="hero-copy">
                 <div class="hero-copy__top">
-                    <p class="eyebrow">Clinical Decision Support</p>
+                    <p class="eyebrow">Hỗ trợ quyết định lâm sàng</p>
                     <h1>Trung tâm sàng lọc nguy cơ <em>đái tháo đường</em></h1>
                 </div>
 
@@ -44,7 +43,7 @@
                         <img src="src/z5463959601833_0e49fa867f8cbc63944708e3e93d6fc1-1.jpg"
                             alt="Bác sĩ lâm sàng hỗ trợ đánh giá nguy cơ đái tháo đường" />
                         <figcaption>
-                            AI scoring kết hợp clinical calibration để biến dữ liệu thô thành tín hiệu hành động.
+                            Kết hợp AI và hiệu chỉnh lâm sàng để biến dữ liệu thô thành tín hiệu hành động.
                         </figcaption>
                     </figure>
                 </div>
@@ -62,7 +61,7 @@
             </article>
             <article class="stat-card stat-card--rail">
                 <strong id="benchmarkStat" class="count-up" data-count-target="0.829" data-count-decimals="3">0.000</strong>
-                <span>ROC-AUC notebook</span>
+                <span>Chỉ số đánh giá</span>
             </article>
         </section>
 
@@ -75,7 +74,7 @@
                     <section class="panel intake-panel intake-panel--mosaic">
                         <div class="panel-lead">
                             <div>
-                                <div class="section-heading">Clinical Intake</div>
+                                <div class="section-heading">Phiếu nhập liệu</div>
                                 <h2>Nhập các chỉ số lâm sàng</h2>
                             </div>
                         </div>
@@ -152,7 +151,7 @@
 
                     <aside class="panel overview-panel overview-panel--spotlight">
                         <div class="panel-lead panel-lead--stacked">
-                            <div class="section-heading">Risk Overview</div>
+                            <div class="section-heading">Tổng quan nguy cơ</div>
                             <p>
                                 Ảnh chụp nhanh để nhìn ra mức độ ưu tiên trước khi đi sâu vào chart và khuyến nghị.
                             </p>
@@ -204,7 +203,7 @@
                             <div id="result"></div>
                         </article>
                         <article class="panel chart-panel analysis-chart-panel">
-                            <div class="section-heading">Radar Comparison</div>
+                            <div class="section-heading">So sánh chỉ số</div>
                             <div class="chart-canvas-wrap">
                                 <canvas id="radarChart"></canvas>
                             </div>
@@ -221,7 +220,7 @@
 
                     <section class="dashboard-grid dashboard-grid--analysis">
                         <article class="panel chart-panel analysis-chart-panel legacy-chart-panel hidden">
-                            <div class="section-heading">Radar Comparison</div>
+                            <div class="section-heading">So sánh chỉ số</div>
                             <div class="chart-canvas-wrap">
                                 <canvas id="radarChartLegacy"></canvas>
                             </div>
@@ -237,7 +236,7 @@
             <section class="tab-panel" data-tab-panel="library">
                 <section class="dashboard-grid dashboard-grid--support content-frame content-frame--main paper-sheet">
                     <article class="panel library-visual-panel">
-                        <div class="section-heading">Clinical Visual Atlas</div>
+                        <div class="section-heading">Bản đồ lâm sàng trực quan</div>
                         <div class="library-visual-grid">
                             <article class="library-chart-card">
                                 <h3>Phổ ngưỡng tham chiếu</h3>
@@ -296,8 +295,12 @@
     </main>
 
     <script src="ui.js"></script>
-    <script src="app.js"></script>
+    <script src="common.js"></script>
+    <script src="guest.js"></script>
+    <script src="user.js"></script>
+    <script src="admin.js"></script>
     <script src="auth-rbac.js"></script>
+
 </body>
 
 </html>
