@@ -2693,7 +2693,7 @@ select:focus {
 }
 
 /* Last tab button (user name) – truncate gracefully */
-
+#mainTabNav .tab-button:last-child {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

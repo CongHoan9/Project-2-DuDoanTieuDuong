@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Header, HTTPException, status, BackgroundTasks
 from typing import Optional
 
 from app.config import get_settings
@@ -61,6 +61,7 @@ def clinical_content():
 @router.post("/admin/delete-user", response_model=AdminDeleteUserResponse)
 async def admin_delete_user(
     request: AdminDeleteUserRequest,
+    background_tasks: BackgroundTasks,
     authorization: Optional[str] = Header(None)
 ):
     """
@@ -95,26 +96,52 @@ async def admin_delete_user(
         
         settings = get_settings()
         
-        # Decode JWT to get user_id (basic decode without verification)
-        # Production: verify signature with Supabase public key
+        import jwt
+        # Supabase may issue HS256, RS256, or ES256 tokens depending on project configuration.
         try:
-            parts = token.split(".")
-            if len(parts) != 3:
-                raise ValueError("Invalid JWT format")
+            unverified_header = jwt.get_unverified_header(token)
+            alg = unverified_header.get("alg", "HS256")
             
-            # Decode payload (add padding if needed)
-            payload_b64 = parts[1]
-            padding = 4 - len(payload_b64) % 4
-            if padding != 4:
-                payload_b64 += "=" * padding
-            
-            payload_json = base64.urlsafe_b64decode(payload_b64)
-            payload = json.loads(payload_json)
+            if alg == "HS256":
+                # Symmetric verification
+                payload = jwt.decode(
+                    token,
+                    settings.supabase_jwt_secret,
+                    algorithms=["HS256"],
+                    options={"verify_aud": False}
+                )
+            elif alg in ["ES256", "RS256"]:
+                # Asymmetric verification via JWKS
+                jwks_url = f"{settings.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+                jwks_client = jwt.PyJWKClient(
+                    jwks_url,
+                    headers={"apikey": settings.supabase_public_key}
+                )
+                signing_key = jwks_client.get_signing_key_from_jwt(token)
+                payload = jwt.decode(
+                    token,
+                    signing_key.key,
+                    algorithms=[alg],
+                    options={"verify_aud": False}
+                )
+            else:
+                raise ValueError(f"Unsupported JWT algorithm: {alg}")
+                
             admin_user_id = payload.get("sub")
             
             if not admin_user_id:
                 raise ValueError("No user ID in token")
-        
+                
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has expired"
+            )
+        except jwt.InvalidTokenError as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Invalid token signature: {str(e)}"
+            )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -161,20 +188,14 @@ async def admin_delete_user(
         
         conn.close()
         
-        # Delete auth user first using service role key, then clean up remaining profile data.
-        auth_result = {"success": False, "message": "Auth deletion skipped or failed."}
-        try:
-            auth_result = delete_user_from_auth(request.target_user_id)
-        except Exception as e:
-            auth_result = {"success": False, "message": str(e)}
+        # Execute deletion in background to return response immediately
+        background_tasks.add_task(delete_user_from_auth, request.target_user_id)
+        background_tasks.add_task(delete_user_and_data, request.target_user_id)
 
-        result = delete_user_and_data(request.target_user_id)
-        if auth_result["success"]:
-            result["message"] = f"{auth_result['message']} {result['message']}"
-        else:
-            result["message"] = f"{result['message']} (Auth deletion warning: {auth_result['message']})"
-
-        return AdminDeleteUserResponse(**result)
+        return AdminDeleteUserResponse(
+            success=True, 
+            message="Yêu cầu xóa tài khoản đã được tiếp nhận và đang xử lý ngầm."
+        )
     
     except HTTPException:
         raise

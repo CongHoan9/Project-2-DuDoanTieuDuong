@@ -298,7 +298,8 @@ function showUserModal(profile) {
 }
 
 // Đăng ký Supabase Realtime: tự động thêm log khi có prediction mới.
-// → Gọi: buildPredictionLog(), renderLogs()
+// → Gọi: buildPredictionLog(), renderLogs(), loadAdminUsers(),
+//        adminRenderHistoryTable(), adminRenderUserLogs()
 let _realtimeChannel = null;
 function subscribeRealtime() {
     const state = window.AppState;
@@ -322,9 +323,45 @@ function subscribeRealtime() {
             // Build log entry với đủ 8 chỉ số
             const logEntry = buildPredictionLog({ ...row, profiles: { full_name: userName, email: userEmail } });
 
-            // Prepend vào đầu mảng + render
+            // 1) Cập nhật log tổng
             _adminLogs.unshift(logEntry);
             renderLogs();
+
+            // 2) Cập nhật bảng người dùng (trạng thái mới nhất)
+            loadAdminUsers();
+
+            // 3) Nếu modal đang mở cho đúng user → cập nhật lịch sử + log trong popup
+            const modalOpen = $("adminUserModal")?.classList.contains("is-open");
+            if (modalOpen && state.selectedProfile && state.selectedProfile.id === row.user_id) {
+                // Thêm row mới vào đầu bảng lịch sử trong popup
+                const newRow = {
+                    id: row.id || Date.now(),
+                    created_at: row.created_at,
+                    has_diabetes: row.has_diabetes || "–",
+                    risk_band: row.risk_band || "–",
+                    risk_score: row.risk_score ?? 0,
+                    probability: row.probability || 0,
+                    glucose: row.glucose ?? 0,
+                    bmi: row.bmi ?? 0,
+                    age: row.age ?? 0
+                };
+                // Cache detail cho record mới
+                adminModal.detailCache.set(newRow.id, {
+                    created_at: row.created_at,
+                    input_data: row.input_payload || {
+                        Pregnancies: row.pregnancies, Glucose: row.glucose,
+                        BloodPressure: row.blood_pressure, SkinThickness: row.skin_thickness,
+                        Insulin: row.insulin, BMI: row.bmi,
+                        DiabetesPedigreeFunction: row.diabetes_pedigree, Age: row.age
+                    },
+                    prediction: row.prediction_payload || {}
+                });
+                adminModal.allRows.unshift(newRow);
+                adminRenderHistoryTable();
+
+                // Cập nhật user logs trong popup
+                adminRenderUserLogs(userEmail || state.selectedProfile.email);
+            }
         })
         .subscribe();
 }

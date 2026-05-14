@@ -226,6 +226,87 @@
         if (error) throw error;
     }
 
+    // ─── User Realtime: tự cập nhật lịch sử khi có prediction mới ───
+    let _userRealtimeChannel = null;
+    function subscribeUserRealtime() {
+        if (!state.client || !state.session || isAdmin() || _userRealtimeChannel) return;
+        const userId = state.session.user.id;
+
+        _userRealtimeChannel = state.client
+            .channel("user-predictions-realtime")
+            .on("postgres_changes", {
+                event: "INSERT", schema: "public", table: "predictions",
+                filter: `user_id=eq.${userId}`
+            }, (payload) => {
+                const row = payload.new;
+                if (!row || !window.historyV2State || !window.renderHistory) return;
+
+                // Kiểm tra đã có row tạm (từ prediction-complete event) chưa
+                const existing = window.historyV2State.rows.find(r =>
+                    r.id === row.id || (Math.abs(new Date(r.created_at) - new Date(row.created_at)) < 3000 && r.id > 1e12)
+                );
+
+                if (existing && existing.id > 1e12) {
+                    // Thay thế row tạm bằng row chính thức từ DB
+                    const oldId = existing.id;
+                    Object.assign(existing, {
+                        id: row.id,
+                        created_at: row.created_at,
+                        has_diabetes: row.has_diabetes || "–",
+                        risk_band: row.risk_band || "–",
+                        risk_score: row.risk_score ?? 0,
+                        probability: row.probability || 0,
+                        glucose: row.glucose ?? 0,
+                        bmi: row.bmi ?? 0,
+                        age: row.age ?? 0
+                    });
+                    // Chuyển cache detail sang ID mới
+                    const cached = window.historyV2State.detailCache.get(oldId);
+                    if (cached) {
+                        window.historyV2State.detailCache.set(row.id, cached);
+                        window.historyV2State.detailCache.delete(oldId);
+                    }
+                    if (window.historyV2State.selectedId === oldId) {
+                        window.historyV2State.selectedId = row.id;
+                    }
+                } else if (!existing) {
+                    // Row hoàn toàn mới (ví dụ từ tab khác)
+                    const newRow = {
+                        id: row.id,
+                        created_at: row.created_at,
+                        has_diabetes: row.has_diabetes || "–",
+                        risk_band: row.risk_band || "–",
+                        risk_score: row.risk_score ?? 0,
+                        probability: row.probability || 0,
+                        glucose: row.glucose ?? 0,
+                        bmi: row.bmi ?? 0,
+                        age: row.age ?? 0
+                    };
+                    window.historyV2State.detailCache.set(row.id, {
+                        created_at: row.created_at,
+                        input_data: row.input_payload || {
+                            Pregnancies: row.pregnancies, Glucose: row.glucose,
+                            BloodPressure: row.blood_pressure, SkinThickness: row.skin_thickness,
+                            Insulin: row.insulin, BMI: row.bmi,
+                            DiabetesPedigreeFunction: row.diabetes_pedigree, Age: row.age
+                        },
+                        prediction: row.prediction_payload || {}
+                    });
+                    window.historyV2State.rows.unshift(newRow);
+                }
+
+                window.renderHistory(window.historyV2State.rows);
+            })
+            .subscribe();
+    }
+
+    function unsubscribeUserRealtime() {
+        if (_userRealtimeChannel) {
+            state.client?.removeChannel(_userRealtimeChannel);
+            _userRealtimeChannel = null;
+        }
+    }
+
     // ─── Init ───
     async function init() {
         const cfg = await fetch(api("supabase-config")).then(r => r.ok ? r.json() : null).catch(() => null);
@@ -235,12 +316,20 @@
         state.session = data.session;
         if (state.session) await loadProfile().catch(e => toast(e.message));
         renderNav();
-        if (isAuth()) { fillAccount(); if (!isAdmin()) loadHistory(); if (isAdmin()) { window.AppAdmin?.loadAdminUsers(); window.AppAdmin?.loadLogs(); window.AppAdmin?.subscribeRealtime(); } }
+        if (isAuth()) {
+            fillAccount();
+            if (!isAdmin()) { loadHistory(); subscribeUserRealtime(); }
+            if (isAdmin()) { window.AppAdmin?.loadAdminUsers(); window.AppAdmin?.loadLogs(); window.AppAdmin?.subscribeRealtime(); }
+        }
 
         state.client.auth.onAuthStateChange(async (_, session) => {
             state.session = session;
             if (session) await loadProfile().catch(e => toast(e.message));
-            else { state.profile = null; if (els.historyBody) els.historyBody.innerHTML = '<tr><td colspan="6">Đăng nhập để xem.</td></tr>'; }
+            else {
+                state.profile = null;
+                unsubscribeUserRealtime();
+                if (els.historyBody) els.historyBody.innerHTML = '<tr><td colspan="6">Đăng nhập để xem.</td></tr>';
+            }
             // Chỉ cập nhật giao diện, KHÔNG tải data ở đây
             // (data loading đã xử lý trong init() và authForm submit handler)
             renderNav();
@@ -256,6 +345,7 @@
             if (e.target.closest("[data-sign-out]")) {
                 state.session = null; state.profile = null;
                 window.AppAdmin?.unsubscribeRealtime();
+                unsubscribeUserRealtime();
                 clearAllForms();
                 if (els.historyBody) els.historyBody.innerHTML = '<tr><td colspan="6">Đăng nhập để xem.</td></tr>';
                 renderNav(); activateTab("predict");
@@ -315,7 +405,7 @@
                     clearAllForms(); renderNav(); fillAccount();
                     // Tải dữ liệu phù hợp với role ngay sau khi đăng nhập
                     if (isAdmin()) { window.AppAdmin?.loadAdminUsers(); window.AppAdmin?.loadLogs(); window.AppAdmin?.subscribeRealtime(); }
-                    else { loadHistory(); }
+                    else { loadHistory(); subscribeUserRealtime(); }
                 }
                 closeModal("authModal"); toast(mode === "signup" ? "Đăng ký thành công" : "Đăng nhập thành công");
             }
