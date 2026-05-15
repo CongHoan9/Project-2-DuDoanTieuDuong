@@ -54,6 +54,17 @@ create table if not exists public.predictions (
     created_at timestamptz not null default now()
 );
 
+create table if not exists public.audit_logs (
+    id bigint generated always as identity primary key,
+    action_type text not null check (action_type in ('INSERT', 'UPDATE', 'DELETE')),
+    table_name text not null,
+    record_id text not null, -- Lưu ID của bản ghi (UUID hoặc BigInt)
+    actor_id uuid, -- ID của người thực hiện hành động (auth.uid), có thể null nếu do hệ thống
+    old_data jsonb, -- Dữ liệu trước khi thay đổi (chỉ có khi UPDATE/DELETE)
+    new_data jsonb, -- Dữ liệu sau khi thay đổi (chỉ có khi INSERT/UPDATE)
+    created_at timestamptz not null default now()
+);
+
 -- ================================================================
 -- INDEXES — Tối ưu truy vấn
 -- ================================================================
@@ -68,10 +79,14 @@ create index if not exists idx_profiles_name_email on public.profiles using gin 
 create index if not exists idx_predictions_user_created on public.predictions(user_id, created_at desc);
 -- Lọc theo kết luận bệnh
 create index if not exists idx_predictions_disease on public.predictions(has_diabetes);
+-- Index để truy xuất log nhanh hơn theo bảng hoặc theo thời gian
+create index if not exists idx_audit_logs_table_time on public.audit_logs(table_name, created_at desc);
+create index if not exists idx_audit_logs_record on public.audit_logs(record_id);
 
 -- ================================================================
 -- TRIGGERS
 -- ================================================================
+
 
 -- Tự động cập nhật updated_at khi sửa profile
 create or replace function public.touch_updated_at()
@@ -452,6 +467,7 @@ $$;
 
 alter table public.profiles enable row level security;
 alter table public.predictions enable row level security;
+alter table public.audit_logs enable row level security;
 
 -- Profiles: user chỉ xem được profile mình, admin xem tất cả
 drop policy if exists "profiles self select" on public.profiles;
@@ -482,9 +498,19 @@ on public.predictions for insert
 to authenticated
 with check (user_id = auth.uid());
 
+-- Admin CHỈ được quyền SELECT (Xem log)
+drop policy if exists "audit_logs select admin only" on public.audit_logs;
+create policy "audit_logs select admin only"
+on public.audit_logs for select
+to authenticated
+using (public.is_admin());
+
 -- ================================================================
 -- PHÂN QUYỀN — Grant cho authenticated role
 -- ================================================================
+
+-- KHÔNG TẠO policy cho INSERT, UPDATE, DELETE.
+-- Theo luật của RLS, nếu không có policy nào cho phép, mọi lệnh INSERT/UPDATE/DELETE từ Frontend/API đều bị TỪ CHỐI (Kể cả gọi bằng quyền Admin).
 
 revoke all on public.profiles from anon;
 revoke all on public.predictions from anon;
