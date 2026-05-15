@@ -27,8 +27,8 @@ Khách trang web khi lần đầu tiên và xem các thông tin công khai về 
    - `state.client.auth.getSession()` → trả về `null` (chưa đăng nhập)
 4. `renderNav()` render 3 nút tab:
    - "Dự đoán" (predict)
-   - "Library" (library)
-   - "Login / Sign In" (account)
+   - "Thư viện" (library)
+   - "Đăng nhập" (login)
 5. Backend `initialize_application()` load model lần đầu:
    - `_load_model_bundle()` được gọi với `@lru_cache`
    - Model, scaler, imputer được load vào memory
