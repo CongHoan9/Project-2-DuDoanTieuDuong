@@ -90,7 +90,7 @@ API sẽ chạy tại `http://127.0.0.1:8000`. Bạn có thể truy cập `http:
 
 ---
 
-## 🔄 Quy trình nghiệp vụ (Luồng dữ liệu)
+## Quy trình nghiệp vụ (Luồng dữ liệu)
 
 1. **User Input**: Người dùng nhập 8 chỉ số lâm sàng trên giao diện web.
 2. **FastAPI Inference**: Frontend gửi dữ liệu qua `POST /api/predict`. Backend tiến hành Impute -> Scale -> Predict.
@@ -100,7 +100,7 @@ API sẽ chạy tại `http://127.0.0.1:8000`. Bạn có thể truy cập `http:
 
 ---
 
-## 🎯 Định hướng phát triển tương lai
+## Định hướng phát triển tương lai
 
 - Mở rộng quy mô tập dữ liệu huấn luyện, tăng cường độ đa dạng về giới tính và sắc tộc.
 - Tích hợp thêm các dữ liệu phi cấu trúc (như hình ảnh siêu âm đáy mắt) vào hệ thống chẩn đoán.
