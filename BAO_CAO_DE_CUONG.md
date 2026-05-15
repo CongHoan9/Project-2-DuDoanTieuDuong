@@ -89,38 +89,44 @@
 
 ## IV. HỆ THỐNG MÔ HÌNH MACHINE LEARNING
 
-### 4.1 Lựa chọn mô hình
-**Các mô hình đã thử nghiệm**:
-1. **Logistic Regression** (được chọn) ✓
-   - Ưu điểm: Dễ giải thích, nhanh, hiệu quả với dữ liệu nhỏ
-   - Kết quả: Accuracy ~0.73, ROC-AUC ~0.813
+### 4.1 Lựa chọn mô hình & Kiến trúc Hybrid
+Dự án sử dụng phương pháp **Hybrid (Lai)** kết hợp giữa mô hình học máy và tri thức y khoa (Rule-based) để tăng độ tin cậy.
+1. **Model gốc (Machine Learning)**: Sử dụng **RandomForest** đã được tinh chỉnh (Tuned).
+   - Đóng vai trò phân tích các mẫu ẩn trong dữ liệu (chiếm trọng số 72%).
+2. **Hiệu chỉnh lâm sàng (Clinical Calibration Layer)**: Hệ thống tính điểm dựa trên các tiêu chuẩn y khoa thực tế.
+   - Ví dụ: Điểm phạt khi Glucose >= 126 mg/dL, BMI >= 30 kg/m², v.v. (chiếm trọng số 28%).
+   
+**Kết quả tổng hợp**: Là sự pha trộn giữa Model gốc và Điểm hiệu chỉnh lâm sàng. Điều này giúp kết quả dự đoán không bị sai lệch quá nhiều so với thực tế lâm sàng.
 
-2. Decision Tree
-   - Kết quả: Khá nhưng dễ overfit
+### 4.2 Tính toán "Độ chắc chắn"
+Hệ thống không chỉ đưa ra xác suất mắc bệnh mà còn cung cấp "Độ chắc chắn" của kết luận đó:
+- Dựa trên khoảng cách giữa xác suất tổng hợp và mốc phân định 50%.
+- **Thấp**: Xác suất nằm quá sát mốc 50% (ví dụ: 43% - 57%), ranh giới khó phân định.
+- **Trung bình**: Khoảng cách vừa phải.
+- **Cao**: Xác suất nghiêng hẳn về một phía (ví dụ: <32% hoặc >68%), dự đoán rất rõ ràng.
 
-3. Random Forest
-   - Kết quả: Tốt nhưng phức tạp, không cần thiết cho bài toán này
-
-### 4.2 Thông số mô hình
-- **Thuật toán**: Logistic Regression
+### 4.3 Thông số mô hình Model gốc
+- **Thuật toán**: Tuned RandomForest
 - **Hyperparameters**:
-  - `class_weight='balanced'`: Xử lý mất cân bằng dữ liệu
-  - `random_state=42`: Tái lập được kết quả
-  - Solver mặc định: 'lbfgs'
+  - `class_weight='balanced'`
+  - `max_depth=10`
+  - `min_samples_split=5`
+  - `n_estimators=100`
 
-### 4.3 Kết quả đánh giá
+### 4.4 Kết quả đánh giá Model gốc
 | Metric | Giá trị |
 |--------|--------|
-| Accuracy | ~0.73 |
-| ROC-AUC | ~0.813 |
-| Precision | ~0.71 |
-| Recall | ~0.66 |
-| F1-Score | ~0.68 |
+| Holdout Accuracy | ~0.77 |
+| Holdout ROC-AUC | ~0.829 |
+| CV ROC-AUC | ~0.831 |
 
-### 4.4 Quy trình suy luận (Inference Pipeline)
+### 4.5 Quy trình suy luận (Inference Pipeline)
 ```
-Input Data → Validation → Imputation (median) 
-→ Standardization → Model Prediction → Output (probability + class)
+Input Data → Validation → Imputation (median) → Standardization 
+→ Model Prediction (Model gốc) 
+        + 
+  Clinical Rule Evaluation (Hiệu chỉnh lâm sàng)
+→ Hybrid Probability (72% Model + 28% Clinical) → Output (Risk Band + Certainty)
 ```
 
 ---

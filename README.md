@@ -25,15 +25,17 @@ Dự án đã chuyển đổi từ kiến trúc local (SQLite) sang kiến trúc
 
 ## Hệ thống Machine Learning
 
+Dự án áp dụng kiến trúc **Hybrid (Lai)**, kết hợp giữa mô hình học máy (Machine Learning) và đánh giá y khoa dựa trên luật (Rule-based Clinical Calibration) để đưa ra kết quả cuối cùng.
+
 Quá trình xây dựng mô hình được lưu trong thư mục `notebooks/`:
 
 - **Nguồn dữ liệu**: Pima Indians Diabetes Database (768 bản ghi, 8 features).
 - **Tiền xử lý**: Sử dụng `SimpleImputer(strategy='median')` để xử lý các giá trị 0 phi lý (Glucose, BMI...) và `StandardScaler` để chuẩn hóa.
-- **Thuật toán cốt lõi**: **Random Forest** (Tối ưu hóa bằng `GridSearchCV`). Đã vượt qua các thuật toán Logistic Regression và Decision Tree ở pha Baseline.
-- **Hiệu suất (Test Set)**:
-  - Accuracy: ~0.77
-  - ROC-AUC: ~0.829
-  - Xử lý mất cân bằng lớp với tham số `class_weight='balanced'`.
+- **Mô hình gốc (Model Gốc)**: Sử dụng **Random Forest** (Tối ưu hóa bằng `GridSearchCV`). Đóng vai trò phân tích các mẫu ẩn trong dữ liệu (trọng số 72%).
+  - Accuracy (Test Set): ~0.77
+  - ROC-AUC (Test Set): ~0.829
+- **Hiệu chỉnh lâm sàng**: Hệ thống tính điểm phạt dựa trên các ngưỡng y khoa thực tế (ví dụ: BMI >= 30, Glucose >= 126). Lớp hiệu chỉnh này chiếm trọng số 28% trong xác suất tổng hợp.
+- **Độ chắc chắn**: Hệ thống tính toán độ chắc chắn (Thấp/Trung bình/Cao) dựa trên khoảng cách của xác suất tổng hợp so với mốc ranh giới 50%.
 
 Các tệp mô hình (Artifacts) dùng cho Backend được lưu tại `backend/assets/`:
 - `diabetes_model.pkl` (Mô hình chính)
