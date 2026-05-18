@@ -395,7 +395,6 @@ body::after {
 .stat-card strong {
     margin: 0;
     font-family: "Sora", sans-serif;
-    letter-spacing: -0.045em;
 }
 
 .hero-copy h1 {
@@ -625,6 +624,7 @@ body::after {
 
 .hero-stats-rail .stat-card strong {
     color: var(--ink);
+    overflow-y: hidden;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     font-size: clamp(1.9rem, 3vw, 2.4rem);
@@ -2297,14 +2297,6 @@ select:focus {
 
     .hero-stats-rail .stat-card+.stat-card {
         padding-left: 0;
-    }
-
-    .hero-stats-rail .stat-card strong {
-        font-size: 1.7rem;
-    }
-
-    .hero-stats-rail .stat-card span {
-        font-size: 0.82rem;
     }
 
     .hero-copy__bottom,
